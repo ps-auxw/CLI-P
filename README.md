@@ -4,14 +4,15 @@ CLI-P is an easy, commandline interface driven way for the lazy
 photographer to look for something in that big old image archive. I
 quickly hacked it together, but it seems to be working alright.
 
-It is a set of two python scripts to use CLIP to search through a
-library of image files from a simple commandline. It supports both
-search by text embedding or image similarity, similar to
+It is a set of two python scripts to use [CLIP](https://github.com/openai/CLIP)
+to search through a library of image files from a simple commandline. It
+supports both search by text embedding or image similarity, similar to
 [same.energy](https://same.energy/).
 
-CLI-P uses LMDB as for storing filenames and 512D feature vectors and
-faiss to build a fast similarity search index, so it should scale
-reasonably well to even high numbers of images.
+CLI-P uses [LMDB](https://symas.com/lmdb/) as for storing filenames and 512D
+feature vectors and [faiss](https://github.com/facebookresearch/faiss) to build
+a fast similarity search index, so it should scale reasonably well to even high
+numbers of images.
 
 To set things up, follow (or run) `setup.sh`. You may want to look at
 the first few lines of `build-index.py` and adjust the two variable
