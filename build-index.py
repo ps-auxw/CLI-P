@@ -78,7 +78,7 @@ with env.begin(db=fn_db) as txn:
         i = 0
         print(f"Preparing index for {n} entries...")
         quantizer = faiss.IndexFlatIP(512)
-        index = faiss.IndexIVFFlat(quantizer, 512, 100)
+        index = faiss.IndexIVFFlat(quantizer, 512, 100, faiss.METRIC_INNER_PRODUCT)
         print(f"Generating {images.shape} matrix...")
         for tfn, vector in cursor:
             v = np.frombuffer(vector, dtype=np.float32)
