@@ -10,3 +10,6 @@
 [submodule "retinaface-pytorch"]
 	path = retinaface-pytorch
 	url = https://github.com/ternaus/retinaface
+[submodule "torchscope"]
+	path = torchscope
+	url = https://github.com/Tramac/torchscope

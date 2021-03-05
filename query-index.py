@@ -16,6 +16,13 @@ def normalize(v):
        return v
     return v / norm
 
+def merge_faiss_results(D, I):
+    results = []
+    for i, result in enumerate(I):
+        for j, index in enumerate(result):
+            results.append((index, D[i][j]))
+    return sorted(results, key=lambda x: x[1])
+
 #device = "cuda" if torch.cuda.is_available() else "cpu"
 device = "cpu"
 model, transform = clip.load("ViT-B/32", device=device, jit=False)
@@ -109,14 +116,17 @@ try:
 
         search_start = time.perf_counter()
         D, I = index.search(features, k + offset + 1)
+        results = merge_faiss_results(D, I)
         search_time = time.perf_counter() - search_start
         print(f"Search time: {search_time:.4f}s")
-        for j, i in enumerate(I[0]):
+        for j, result in enumerate(results):
             if j <= offset:
                 continue
+            if j >= offset + k:
+                break
             with env.begin(db=idx_db) as txn:
-                tfn = txn.get(f"{i}".encode()).decode()
-                print(f"{D[0][j]:.4f} {i} {tfn}")
+                tfn = txn.get(f"{result[0]}".encode()).decode()
+                print(f"{result[1]:.4f} {result[0]} {tfn}")
                 try:
                     last_j = j
                     image = cv2.imread(tfn, cv2.IMREAD_COLOR)
