@@ -1,0 +1,12 @@
+[submodule "faiss"]
+	path = faiss
+	url = https://github.com/facebookresearch/faiss
+[submodule "CLIP"]
+	path = CLIP
+	url = https://github.com/openai/CLIP
+[submodule "albumentations"]
+	path = albumentations
+	url = https://github.com/albumentations-team/albumentations
+[submodule "retinaface-pytorch"]
+	path = retinaface-pytorch
+	url = https://github.com/ternaus/retinaface
