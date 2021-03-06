@@ -22,17 +22,17 @@ model.eval()
 face_model = None
 face_transforms = transforms.Compose([transforms.ToTensor(), transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
 def load_arcface():
-    global face_model, device
+    global face_model
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        checkpoint = torch.load(os.getenv("HOME") + "/.cache/InsightFace-v2/BEST_checkpoint_r101.tar")
+        checkpoint = torch.load(os.getenv("HOME") + "/.cache/InsightFace-v2/BEST_checkpoint_r101.tar", map_location=torch.device(device))
         face_model = checkpoint['model'].module.to(device)
         face_model.device = device
         face_model.eval()
 
 # image needs to be RGB not BGR
 def embed_faces(annotations, filename=None, image=None):
-    global face_model, device
+    global face_model
     if len(annotations) < 1:
         return True
     with torch.no_grad():
