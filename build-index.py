@@ -43,7 +43,7 @@ try:
         for base_path in sys.argv[1:]:
             print(f"CLIPing {base_path}...")
             for fn in os.listdir(base_path):
-                tfn = base_path + '/' + fn
+                tfn = os.path.join(base_path, fn)
                 ext = os.path.splitext(fn)
                 if len(ext) < 2 or not ext[1].lower() in file_extensions:
                     continue
