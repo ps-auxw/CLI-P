@@ -45,6 +45,12 @@ def open_db(map_size=1024*1024*1024*20, pack_type='<Q'):
         if res is None:
             txn.put(b'next', i2b(0))
 
+def key_len():
+    l = 8
+    if int_type == '<L':
+        l = 4
+    return l
+
 def i2b(i, postfix=None):
     packed = struct.pack(int_type, i)
     if postfix is not None:
@@ -52,13 +58,13 @@ def i2b(i, postfix=None):
     return packed
 
 def b2i(b):
-    return struct.unpack(int_type, b[0:8])[0]
+    return struct.unpack(int_type, b[0:key_len()])[0]
 
 def s2b(i):
     return struct.pack('<H', i)
 
 def b2s(b):
-    return struct.upack('<H', b[0:2])[0]
+    return struct.unpack('<H', b[0:2])[0]
 
 def get_next_idx():
     with env.begin(db=fix_idx_db) as txn:
@@ -92,6 +98,11 @@ def get_fix_idx(idx, postfix):
 def get_idx(faiss_index):
     with env.begin(db=idx_db) as txn:
         return b2i(txn.get(i2b(faiss_index)))
+
+def get_idx_face(faiss_index):
+    with env.begin(db=idx_face_db) as txn:
+        res = txn.get(i2b(faiss_index))
+        return (b2i(res), b2s(res[key_len()+1:]))
 
 def put_idx(faiss_index, fix_idx):
     with env.begin(db=idx_db, write=True) as txn:

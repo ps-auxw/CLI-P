@@ -54,15 +54,25 @@ def embed_faces(annotations, filename=None, image=None):
             annotation['embedding'] = embedding[i]
         return True
 
-def annotate(annotations, filename=None, image=None):
+def annotate(annotations, filename=None, image=None, scale=1.0, face_id=None):
     if image is None and filename is not None:
         image = cv2.imread(filename)
     if image is None:
         return None
-    for annotation in annotations:
-        image = cv2.rectangle(image, (annotation['bbox'][0], annotation['bbox'][1]), (annotation['bbox'][2], annotation['bbox'][3]), (0, 0, 255), 2)
+    for i, annotation in enumerate(annotations):
+        color = (0, 0, 255)
+        if face_id is not None and face_id == i:
+            color = (0, 255, 0)
+        bbox = (int(annotation['bbox'][0] * scale + 0.5), int(annotation['bbox'][1] * scale + 0.5), int(annotation['bbox'][2] * scale + 0.5), int(annotation['bbox'][3] * scale + 0.5))
+        image = cv2.rectangle(image, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color, 2)
         for landmark in annotation['landmarks']:
-            image = cv2.circle(image, (landmark[0], landmark[1]), 1, (0, 0, 255), 2)
+            image = cv2.circle(image, (int(landmark[0] * scale + 0.5), int(landmark[1] * scale + 0.5)), 1, (0, 0, 255), 2)
+
+        y = bbox[1] - 4
+        if y - 24 < 0:
+            y = bbox[3] + 28
+        image = cv2.putText(image, str(i), (bbox[0], y), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 4, cv2.LINE_AA)
+        image = cv2.putText(image, str(i), (bbox[0], y), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 1, cv2.LINE_AA)
     return image
 
 # image needs to be RGB not BGR
@@ -100,8 +110,9 @@ if __name__ == "__main__":
         annotations = get_faces(filename)
         process_time = time.perf_counter() - process_start
         print(f"Processing time: {process_time:.4f}s")
+        image = annotate(annotations, filename)
         try:
-            cv2.imshow('Image', annotate(annotations, filename))
+            cv2.imshow('Image', image)
             cv2.waitKey(0)
         except:
             pass
