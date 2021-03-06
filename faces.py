@@ -29,7 +29,7 @@ def load_arcface():
     global face_model
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        checkpoint = torch.load(os.path.join(xdg.BaseDirectory.xdg_cache_home, "InsightFace-v2/BEST_checkpoint_r101.tar"), map_location=torch.device(device))
+        checkpoint = torch.load(os.path.join(xdg.BaseDirectory.xdg_cache_home, "InsightFace-v2", "BEST_checkpoint_r101.tar"), map_location=torch.device(device))
         face_model = checkpoint['model'].module.to(device)
         face_model.device = device
         face_model.eval()
