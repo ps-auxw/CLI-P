@@ -14,6 +14,12 @@ import config
 import database
 from faces import annotate as annotate_faces
 
+# Might not exist, but let's try
+try:
+    import readline
+except:
+    pass
+
 def normalize(v):
     norm = np.linalg.norm(v)
     if norm < 0.000000001: 
