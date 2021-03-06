@@ -37,7 +37,10 @@ def embed_faces(annotations, filename=None, image=None):
         return True
     with torch.no_grad():
         if image is None and filename is not None:
-            image = cv2.cvtColor(cv2.imread(filename), cv2.COLOR_BGR2RGB)
+            image = cv2.imread(filename)
+            if image is None:
+                return
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         if image is None:
             return False
         images = torch.zeros(len(annotations), 3, 112, 112).to(device)
@@ -45,7 +48,6 @@ def embed_faces(annotations, filename=None, image=None):
             face = warp_and_crop_face(image, annotation['landmarks'], reference_pts=align_faces.REFERENCE_FACIAL_POINTS_112, crop_size=(112,112))
             images[i] = face_transforms(face).to(device)
         embedding = face_model(images)
-        print(embedding.shape)
         embedding = embedding / embedding.norm(dim=-1, keepdim=True)
         embedding = embedding.cpu().numpy()
         for i, annotation in enumerate(annotations):
@@ -67,10 +69,15 @@ def annotate(annotations, filename=None, image=None):
 def get_faces(filename=None, image=None):
     with torch.no_grad():
         if image is None and filename is not None:
-            image = cv2.cvtColor(cv2.imread(filename), cv2.COLOR_BGR2RGB)
+            image = cv2.imread(filename)
+            if image is None:
+                return []
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         if image is None:
             return []
         annotations = model.predict_jsons(image, nms_threshold=0.25, confidence_threshold=0.85)
+        if len(annotations) < 1 or len(annotations[0]['bbox']) != 4 or len(annotations) > 500:
+            return []
 
         boxes = torch.zeros(len(annotations), 4)
         for i, annotation in enumerate(annotations):
@@ -93,5 +100,8 @@ if __name__ == "__main__":
         annotations = get_faces(filename)
         process_time = time.perf_counter() - process_start
         print(f"Processing time: {process_time:.4f}s")
-        cv2.imshow('Image', annotate(annotations, filename))
-        cv2.waitKey(0)
+        try:
+            cv2.imshow('Image', annotate(annotations, filename))
+            cv2.waitKey(0)
+        except:
+            pass
