@@ -10,6 +10,7 @@ import faiss
 from PIL import Image
 import cv2
 
+import config
 import database
 from faces import annotate as annotate_faces
 
@@ -60,25 +61,27 @@ model.eval()
 database.open_db()
 
 index = faiss.read_index("images.index")
-index.nprobe = 64
+index.nprobe = config.get_setting_int("probe", 64)
 
 faces_index = faiss.read_index("faces.index")
-faces_index.nprobe = 64
+faces_index.nprobe = config.get_setting_int("probe", 64)
 
 in_text = ""
 texts = None
 features = None
-show_faces = False
-face_threshold = 0.3
-clip_threshold = 0.19
-k = 50
+show_faces = config.get_setting_bool("show_faces", False)
+face_threshold = config.get_setting_float("face_threshold", 0.3)
+clip_threshold = config.get_setting_float("clip_threshold", 0.19)
+k = config.get_setting_int("k", 50)
 offset = 0
 last_j = 0
 search_mode = -1
 max_res = None
-align_window = False
+if config.get_setting_bool("max_res_set", False):
+    max_res = (config.get_setting_int("max_res_x", 1280), config.get_setting_int("max_res_y", 720))
+align_window = config.get_setting_bool("align_window", False)
 results = None
-skip_same = True
+skip_same = config.get_setting_bool("skip_same", True)
 last_vector = None
 face_features = None
 try:
@@ -94,6 +97,7 @@ try:
             threshold = float(in_text[3:])
             if threshold >= 0.0 and threshold <= 1.0:
                 clip_threshold = threshold
+                config.set_setting_float("clip_threshold", clip_threshold)
                 print(f"Set CLIP similarity threshold to {clip_threshold}.")
                 continue
             print("Invalid CLIP threshold value.")
@@ -102,6 +106,7 @@ try:
             threshold = float(in_text[3:])
             if threshold >= 0.0 and threshold <= 1.0:
                 face_threshold = threshold
+                config.set_setting_float("face_threshold", face_threshold)
                 print(f"Set face similarity threshold to {face_threshold}.")
                 continue
             print("Invalid face threshold value.")
@@ -111,12 +116,14 @@ try:
             if probe > 0 and probe < 101:
                 index.nprobe = probe
                 faces_index.nprobe = probe
+                config.set_setting_int("probe", probe)
                 print(f"Set to probe {probe} subsets.")
                 continue
             print("Invalid probe value.")
             continue
         elif in_text == 'k':
             skip_same = not skip_same
+            config.set_setting_bool("skip_same", skip_same)
             if skip_same:
                 print("Skipping images with the same CLIP features as previous.")
             else:
@@ -124,6 +131,7 @@ try:
             continue
         elif in_text == 's':
             show_faces = not show_faces
+            config.set_setting_bool("show_faces", show_faces)
             if show_faces:
                 print("Showing face information.")
             else:
@@ -131,6 +139,7 @@ try:
             continue
         elif in_text == 'a':
             align_window = not align_window
+            config.set_setting_bool("align_window", align_window)
             if align_window:
                 print("Aligning window position.")
             else:
@@ -144,11 +153,15 @@ try:
                 y = int(y)
                 if x > 0 and y > 0:
                     max_res = (x, y)
+                    config.set_setting_bool("max_res_set", True)
+                    config.set_setting_int("max_res_x", x)
+                    config.set_setting_int("max_res_y", y)
                     print(f"Set maximum resolution to {x}x{y}.")
                     continue
             except:
                 pass
             max_res = None
+            config.set_setting_bool("max_res_set", False)
             print("Unset maximum resolution.")
             continue
         elif in_text.startswith('c '):

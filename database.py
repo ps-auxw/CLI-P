@@ -2,6 +2,7 @@ import lmdb
 import numpy as np
 import hashlib
 import struct
+from numpack import s2b, b2s
 
 # LMDB environment
 env = None
@@ -59,12 +60,6 @@ def i2b(i, postfix=None):
 
 def b2i(b):
     return struct.unpack(int_type, b[0:key_len()])[0]
-
-def s2b(i):
-    return struct.pack('<H', i)
-
-def b2s(b):
-    return struct.unpack('<H', b[0:2])[0]
 
 def get_next_idx():
     with env.begin(db=fix_idx_db) as txn:
