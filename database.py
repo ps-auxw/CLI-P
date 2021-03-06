@@ -84,15 +84,14 @@ def put_skip(filename):
 def check_fn(filename):
     return (get_s(filename, fn_db) is not None)
 
-def get_fix_idx_v(idx):
-    return get_fix_idx(idx, b'v')
+def get_fix_idx_vector(idx):
+    return np.frombuffer(get_fix_idx(idx, b'v'), np.float32).reshape((1,512))
 
-def get_fix_idx_f(idx):
-    return get_fix_idx(idx, b'n')
+def get_fix_idx_filename(idx):
+    return get_fix_idx(idx, b'n').decode()
 
 def get_fix_idx(idx, postfix):
     idx = i2b(idx, postfix)
-    fn = None
     with env.begin(db=fix_idx_db) as txn:
         return txn.get(idx)
 

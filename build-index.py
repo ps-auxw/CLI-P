@@ -20,8 +20,14 @@ faces = True
 # If you have more than 2^32 images or faces, set this to '<Q'
 pack_type = '<L'
 
-# Split up index into this many clusters, 100 seems like a good number
-clusters = 1
+# Split up index into this many clusters, 100 seems like a good number, but having at the very least 36 * clusters images is recommended
+clusters = 100
+
+# Accepted file extensions (have to be readable as standard RGB images by pillow and opencv)
+file_extensions = ['.jpg', '.jpeg', '.png']
+
+# Paths containing these will be skipped during index creation
+skip_paths = []
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 model, transform = clip.load("ViT-B/32", device=device, jit=False)
@@ -39,7 +45,7 @@ try:
             for fn in os.listdir(base_path):
                 tfn = base_path + fn
                 ext = os.path.splitext(fn)
-                if len(ext) < 2 or not ext[1].lower() in ['.jpg', '.jpeg', '.png']:
+                if len(ext) < 2 or not ext[1].lower() in file_extensions:
                     continue
                 if database.check_skip(tfn):
                     continue
@@ -100,6 +106,14 @@ with database.env.begin(db=database.fn_db) as fn_txn:
                 faces_index = faiss.IndexIVFFlat(faces_quantizer, 512, clusters, faiss.METRIC_INNER_PRODUCT)
             print(f"Generating matrix...")
             for fn_hash, fix_idx in cursor:
+                fn = txn.get(fix_idx + b'n')
+                skip = False
+                for skip_path in skip_paths:
+                    if skip_path in fn:
+                        skip = True
+                        break
+                if skip:
+                    continue
                 vector = txn.get(fix_idx + b'v')
                 v = np.frombuffer(vector, dtype=np.float32)
                 v = v.reshape((512,))

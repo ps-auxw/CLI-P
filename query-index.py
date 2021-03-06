@@ -10,6 +10,8 @@ import faiss
 from PIL import Image
 import cv2
 
+import database
+
 def normalize(v):
     norm = np.linalg.norm(v)
     if norm < 0.000000001: 
@@ -28,10 +30,6 @@ device = "cpu"
 model, transform = clip.load("ViT-B/32", device=device, jit=False)
 
 model.eval()
-
-env = lmdb.open('vectors.lmdb', map_size=1024*1024*1024*20, max_dbs=4)
-idx_db = env.open_db("idx_db".encode())
-fn_db = env.open_db("fn_db".encode())
 
 index = faiss.read_index("images.index")
 index.nprobe = 32
@@ -95,12 +93,9 @@ try:
             offset = 0
             last_j = 0
             try:
-                key = f"{image_id}".encode()
-                with env.begin(db=idx_db) as txn:
-                    key = txn.get(key)
-                with env.begin(db=fn_db) as txn:
-                    features = np.frombuffer(txn.get(key), dtype=np.float32).reshape((1,512))
-                print(f"Similar to {key.decode()}:")
+                filename = database.get_fix_idx_filename(image_id)
+                features = database.get_fix_idx_vector(image_id)
+                print(f"Similar to {filename}:")
             except:
                 print("Not found.")
                 continue
@@ -124,43 +119,42 @@ try:
                 continue
             if j >= offset + k:
                 break
-            with env.begin(db=idx_db) as txn:
-                tfn = txn.get(f"{result[0]}".encode()).decode()
-                print(f"{result[1]:.4f} {result[0]} {tfn}")
-                try:
-                    last_j = j
-                    image = cv2.imread(tfn, cv2.IMREAD_COLOR)
-                    if image is None or image.shape[0] < 2:
-                        continue
-                    h, w, _ = image.shape
-                    if max_res is not None:
-                        need_resize = False
-                        if w > max_res[0]:
-                            factor = float(max_res[0])/float(w)
-                            w = max_res[0]
-                            h *= factor
-                            need_resize = True
-                        if h > max_res[1]:
-                            factor = float(max_res[1])/float(h)
-                            h = max_res[1]
-                            w *= factor
-                            need_resize = True
-                        if need_resize:
-                            image = cv2.resize(image, (int(w + 0.5), int(h + 0.5)), interpolation=cv2.INTER_LANCZOS4)
-                    cv2.imshow('Image', image)
-                    if align_window:
-                        cv2.moveWindow('Image', 0, 0)
-                    key = ""
-                    do_break = False
-                    while key != ord(" "):
-                        key = cv2.waitKey(0) & 0xff
-                        if key == ord('q'):
-                            do_break = True
-                            break
-                    if do_break:
-                        break
-                except:
+            tfn = database.get_fix_idx_filename(result[0])
+            print(f"{result[1]:.4f} {result[0]} {tfn}")
+            try:
+                last_j = j
+                image = cv2.imread(tfn, cv2.IMREAD_COLOR)
+                if image is None or image.shape[0] < 2:
                     continue
+                h, w, _ = image.shape
+                if max_res is not None:
+                    need_resize = False
+                    if w > max_res[0]:
+                        factor = float(max_res[0])/float(w)
+                        w = max_res[0]
+                        h *= factor
+                        need_resize = True
+                    if h > max_res[1]:
+                        factor = float(max_res[1])/float(h)
+                        h = max_res[1]
+                        w *= factor
+                        need_resize = True
+                    if need_resize:
+                        image = cv2.resize(image, (int(w + 0.5), int(h + 0.5)), interpolation=cv2.INTER_LANCZOS4)
+                cv2.imshow('Image', image)
+                if align_window:
+                    cv2.moveWindow('Image', 0, 0)
+                key = ""
+                do_break = False
+                while key != ord(" "):
+                    key = cv2.waitKey(0) & 0xff
+                    if key == ord('q'):
+                        do_break = True
+                        break
+                if do_break:
+                    break
+            except:
+                continue
         cv2.destroyAllWindows()
 except EOFError:
     print("Interrupted.")
