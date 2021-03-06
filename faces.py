@@ -16,7 +16,10 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 model = None
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
-    model = get_model("resnet50_2020-07-20", max_size=2048, device=device)
+    if device == 'cpu':
+        model = get_model("resnet50_2020-07-20", max_size=720, device=device)
+    else:
+        model = get_model("resnet50_2020-07-20", max_size=2048, device=device)
 model.eval()
 
 face_model = None
@@ -93,7 +96,7 @@ def get_faces(filename=None, image=None):
         for i, annotation in enumerate(annotations):
             boxes[i, :] = torch.tensor((annotation['bbox'][0], annotation['bbox'][1], annotation['bbox'][2], annotation['bbox'][3])).float()
 
-        valid_boxes = torchvision.ops.remove_small_boxes(boxes, 40)
+        valid_boxes = torchvision.ops.remove_small_boxes(boxes, 24)
 
         valid_annotations = []
         for box_id in valid_boxes:
