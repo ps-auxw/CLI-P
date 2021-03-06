@@ -15,15 +15,6 @@ skip_db = None
 # Fixed mapping from uint64 to filename and to vector (+'n' for filename, +'v' for vector, +'f' for face count, +'f'+fidx for face data)
 fix_idx_db = None
 
-# Filename -> face data
-face_db = None
-
-# Stores whether an image has been checked for faces
-face_done_db = None
-
-# Maps tags to a number of vectors
-face_tag_db = None
-
 # faiss index to fixed index
 idx_db = None
 
@@ -34,16 +25,14 @@ idx_face_db = None
 int_type = '<Q'
 
 def open_db(map_size=1024*1024*1024*20, pack_type='<Q'):
-    global env, fn_db, skip_db, fix_idx_db, idx_db, face_db, face_done_db, idx_face_db, face_tag_db, int_type
-    env = lmdb.open('vectors.lmdb', map_size=map_size, max_dbs=8)
+    global env, fn_db, skip_db, fix_idx_db, idx_db, idx_face_db, int_type
+    env = lmdb.open('vectors.lmdb', map_size=map_size, max_dbs=5)
 
     fn_db = env.open_db(b'fn_db')
     skip_db = env.open_db(b'skip_db')
     fix_idx_db = env.open_db(b'fix_idx_db')
     idx_db = env.open_db(b'idx_db')
-    face_db = env.open_db(b'face_db')
     idx_face_db = env.open_db(b'idx_face_db')
-    face_tag_db = env.open_db(b'face_tag_db')
     int_type = pack_type
 
     with env.begin(db=fix_idx_db, write=True) as txn:
@@ -99,6 +88,10 @@ def get_fix_idx(idx, postfix):
     idx = i2b(idx, postfix)
     with env.begin(db=fix_idx_db) as txn:
         return txn.get(idx)
+
+def get_idx(faiss_index):
+    with env.begin(db=idx_db) as txn:
+        return b2i(txn.get(i2b(faiss_index)))
 
 def put_idx(faiss_index, fix_idx):
     with env.begin(db=idx_db, write=True) as txn:

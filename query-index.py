@@ -20,8 +20,8 @@ def normalize(v):
 
 def merge_faiss_results(D, I):
     results = []
-    for i, result in enumerate(I):
-        for j, index in enumerate(result):
+    for i, indexes in enumerate(I):
+        for j, index in enumerate(indexes):
             if index < 0:
                 continue
             results.append((index, D[i][j]))
@@ -94,7 +94,7 @@ try:
             continue
         elif in_text.startswith('i '):
             image_id = int(in_text[2:])
-            offset = 0
+            offset = -1
             last_j = 0
             try:
                 filename = database.get_fix_idx_filename(image_id)
@@ -108,13 +108,13 @@ try:
             if texts is None:
                 continue
         else:
-            offset = 0
+            offset = -1
             last_j = 0
             texts = clip.tokenize([in_text]).to(device)
             features = normalize(model.encode_text(texts).detach().cpu().numpy().astype('float32'))
 
         search_start = time.perf_counter()
-        D, I = index.search(features, k + offset + 1)
+        D, I = index.search(features, k + offset + 2)
         results = merge_faiss_results(D, I)
         search_time = time.perf_counter() - search_start
         print(f"Search time: {search_time:.4f}s")
@@ -123,8 +123,9 @@ try:
                 continue
             if j >= offset + k:
                 break
-            tfn = database.get_fix_idx_filename(result[0])
-            print(f"{result[1]:.4f} {result[0]} {tfn}")
+            fix_idx = database.get_idx(result[0])
+            tfn = database.get_fix_idx_filename(fix_idx)
+            print(f"{result[1]:.4f} {fix_idx} {tfn}")
             try:
                 last_j = j
                 image = cv2.imread(tfn, cv2.IMREAD_COLOR)

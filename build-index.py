@@ -73,7 +73,6 @@ try:
                 except KeyboardInterrupt:
                     raise KeyboardInterrupt()
                 except Exception as e:
-                    print(e)
                     print("#", end="", flush=True)
                     database.put_skip(tfn)
                     continue
@@ -114,30 +113,11 @@ with database.env.begin(db=database.fn_db) as fn_txn:
                         break
                 if skip:
                     continue
-                vector = txn.get(fix_idx + b'v')
-                v = np.frombuffer(vector, dtype=np.float32)
-                v = v.reshape((512,))
+                v = database.get_fix_idx_vector(database.b2i(fix_idx)).reshape((512,))
                 images[count, :] = v
+                count += 1
                 database.put_idx(i, fix_idx)
                 i += 1
-                if faces:
-                    annotations = database.get_faces(fix_idx)
-                    for face_idx, annotation in enumerate(annotations):
-                        faces_array[faces_count, :] = annotation['embedding'][0]
-                        faces_i += 1
-                        database.put_idx_face(faces_i, fix_idx, face_idx)
-                        faces_count += 1
-                        if faces_count == nd:
-                            faces_count = 0
-                            faces_array = faces_array.astype('float32')
-                            if faces_need_training:
-                                print(f"Training faces index {faces_array.shape}...")
-                                faces_index.train(faces_array)
-                                faces_need_training = False
-                            print(f"Adding to faces index...")
-                            faces_index.add(faces_array)
-                            faces_array = np.zeros((nd, 512))
-                count += 1
                 if count == nd:
                     count = 0
                     images = images.astype('float32')
@@ -148,6 +128,23 @@ with database.env.begin(db=database.fn_db) as fn_txn:
                     print(f"Adding to index...")
                     index.add(images)
                     images = np.zeros((nd, 512))
+                if faces:
+                    annotations = database.get_faces(fix_idx)
+                    for face_idx, annotation in enumerate(annotations):
+                        faces_array[faces_count, :] = annotation['embedding'][0].reshape((512,))
+                        faces_count += 1
+                        database.put_idx_face(faces_i, fix_idx, face_idx)
+                        faces_i += 1
+                        if faces_count == nd:
+                            faces_count = 0
+                            faces_array = faces_array.astype('float32')
+                            if faces_need_training:
+                                print(f"Training faces index {faces_array.shape}...")
+                                faces_index.train(faces_array)
+                                faces_need_training = False
+                            print(f"Adding to faces index...")
+                            faces_index.add(faces_array)
+                            faces_array = np.zeros((nd, 512))
             if count > 0:
                 images = images[0:count].astype('float32')
                 if need_training:
