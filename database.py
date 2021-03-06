@@ -47,6 +47,11 @@ def open_db(map_size=1024*1024*1024*20, pack_type='<Q'):
     int_type = pack_type
 
     with env.begin(db=fix_idx_db, write=True) as txn:
+        res = txn.get(b'int_type')
+        if res is None:
+            txn.put(b'int_type', pack_type.encode())
+        else:
+            int_type = res.decode()
         res = txn.get(b'next')
         if res is None:
             txn.put(b'next', i2b(0))

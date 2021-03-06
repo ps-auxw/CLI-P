@@ -22,14 +22,18 @@ def merge_faiss_results(D, I):
     results = []
     for i, result in enumerate(I):
         for j, index in enumerate(result):
+            if index < 0:
+                continue
             results.append((index, D[i][j]))
-    return sorted(results, key=lambda x: x[1])
+    return sorted(results, key=lambda x: x[1], reverse=True)
 
 #device = "cuda" if torch.cuda.is_available() else "cpu"
 device = "cpu"
 model, transform = clip.load("ViT-B/32", device=device, jit=False)
 
 model.eval()
+
+database.open_db()
 
 index = faiss.read_index("images.index")
 index.nprobe = 32

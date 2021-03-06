@@ -106,7 +106,7 @@ with database.env.begin(db=database.fn_db) as fn_txn:
                 faces_index = faiss.IndexIVFFlat(faces_quantizer, 512, clusters, faiss.METRIC_INNER_PRODUCT)
             print(f"Generating matrix...")
             for fn_hash, fix_idx in cursor:
-                fn = txn.get(fix_idx + b'n')
+                fn = txn.get(fix_idx + b'n').decode()
                 skip = False
                 for skip_path in skip_paths:
                     if skip_path in fn:
