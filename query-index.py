@@ -20,13 +20,35 @@ def normalize(v):
     return v / norm
 
 def merge_faiss_results(D, I, lookup):
-    results = []
+    results = {}
     for i, indexes in enumerate(I):
         for j, index in enumerate(indexes):
             if index < 0:
                 continue
-            results.append([lookup(index), D[i][j]])
-    return sorted(results, key=lambda x: x[1], reverse=True)
+            if index not in results or D[i][j] > results[index][1]:
+                results[index] = [lookup(index), D[i][j]]
+    return sorted(results.values(), key=lambda x: x[1], reverse=True)
+
+def merge_faiss_results_1d(D, I, lookup, check_list):
+    results = {}
+    for i, index in enumerate(I):
+        if index < 0:
+            continue
+        fix_idx = lookup(index)
+        if index not in results or D[i] > results[index][0]:
+            if str(fix_idx) in check_list:
+                results[index] = [fix_idx, D[i]]
+    return sorted(results.values(), key=lambda x: x[1], reverse=True)
+
+def merge_faiss_results_1d_dict(D, I, lookup):
+    results = {}
+    for i, index in enumerate(I):
+        if index < 0:
+            continue
+        fix_idx = lookup(index)
+        if index not in results or D[i] > results[str(fix_idx[0])]:
+            results[str(fix_idx[0])] = D[i]
+    return results
 
 #device = "cuda" if torch.cuda.is_available() else "cpu"
 device = "cpu"
@@ -46,7 +68,8 @@ in_text = ""
 texts = None
 features = None
 show_faces = False
-face_threshold = 0.315
+face_threshold = 0.3
+clip_threshold = 0.19
 k = 50
 offset = 0
 last_j = 0
@@ -56,13 +79,23 @@ align_window = False
 results = None
 skip_same = True
 last_vector = None
+face_features = None
 try:
     while in_text != 'q':
-        in_text = input("[h,q,l,i,if,s,r,a,c,ft,p,k] >>> ").strip()
+        # Handle commands
+        in_text = input("[h,q,l,i,if,s,r,a,c,ft,ct,p,k] >>> ").strip()
         if in_text == 'q':
             break
         elif in_text == 'h':
-            print("Enter a search query and you will receive a list of best matching\nimages. The first number is the difference score, the second the\nimage ID followed by the filename.\n\nPress q to stop viewing image and space for the next image.\n\nJust press enter for more results.\n\nCommands:\nq\tQuit\nl ID\tShow the image with the given ID and list faces\ni ID\tFind images similar to ID\nif ID F\tFind images with faces similar to face F in image ID\ns\tToggle display of on-image face annotations\nr [RES]\tSet maximum resolution (e.g. 1280x720)\na\tToggle align window position\nc NUM\tSet default number of results to NUM\nft THRES\tSet face similarity cutoff point in [0, 1]\np NUM\tSet number of subsets to probe (1-100, 32 default)\nk\tSkip images with identical CLIP features\nh\tShow this help")
+            print("Enter a search query and you will receive a list of best matching\nimages. The first number is the difference score, the second the\nimage ID followed by the filename.\n\nPress q to stop viewing image and space for the next image.\n\nJust press enter for more results.\n\nCommands:\nq\tQuit\nl ID\tShow the image with the given ID and list faces\ni ID\tFind images similar to ID\nif ID F\tFind images with faces similar to face F in image ID\ns\tToggle display of on-image face annotations\nr [RES]\tSet maximum resolution (e.g. 1280x720)\na\tToggle align window position\nc NUM\tSet default number of results to NUM\nft THRES\tSet face similarity cutoff point in [0, 1]\nct THRES\tSet clip similarity cutoff point in [0, 1] for mixed search\np NUM\tSet number of subsets to probe (1-100, 32 default)\nk\tSkip images with identical CLIP features\nh\tShow this help")
+            continue
+        elif in_text.startswith('ct '):
+            threshold = float(in_text[3:])
+            if threshold >= 0.0 and threshold <= 1.0:
+                clip_threshold = threshold
+                print(f"Set CLIP similarity threshold to {clip_threshold}.")
+                continue
+            print("Invalid CLIP threshold value.")
             continue
         elif in_text.startswith('ft '):
             threshold = float(in_text[3:])
@@ -143,20 +176,27 @@ try:
             results = [(image_id, 1.0)] * k
             search_mode = -1
         elif in_text.startswith('if '):
-            image_id, face_id = in_text[3:].split(" ")
-            image_id = int(image_id)
-            face_id = int(face_id)
-            offset = -1
-            last_j = 0
             try:
+                search_mode = 1
+                parts = in_text[3:].split(" ", 3)
+                image_id = int(parts[0])
+                face_id = int(parts[1])
+                offset = -1
+                last_j = 0
+
                 filename = database.get_fix_idx_filename(image_id)
                 annotations = database.get_faces(database.i2b(image_id))
                 features = annotations[face_id]['embedding']
+                if len(parts) > 2:
+                    face_features = features
+                    search_mode = 2
+                    texts = clip.tokenize([parts[2]]).to(device)
+                    features = normalize(model.encode_text(texts).detach().cpu().numpy().astype('float32'))
                 print(f"Similar faces to {face_id} in {image_id}:")
             except:
                 print("Not found.")
+                search_mode = -1
                 continue
-            search_mode = 1
         elif in_text.startswith('i '):
             image_id = int(in_text[2:])
             offset = -1
@@ -180,19 +220,32 @@ try:
             features = normalize(model.encode_text(texts).detach().cpu().numpy().astype('float32'))
             search_mode = 0
 
+        # Do search
         if search_mode == 0:
+            # Search CLIP features
             search_start = time.perf_counter()
             D, I = index.search(features, k + offset + 2)
             results = merge_faiss_results(D, I, database.get_idx)
             search_time = time.perf_counter() - search_start
             print(f"Search time: {search_time:.4f}s")
         elif search_mode == 1:
+            # Search face embedding
             search_start = time.perf_counter()
             D, I = faces_index.search(features, k + offset + 2)
             results = merge_faiss_results(D, I, database.get_idx_face)
             search_time = time.perf_counter() - search_start
             print(f"Search time: {search_time:.4f}s")
+        elif search_mode == 2:
+            # Search CLIP features containing face embedding
+            search_start = time.perf_counter()
+            _, D, I = faces_index.range_search(x=face_features, thresh=face_threshold)
+            face_results = merge_faiss_results_1d_dict(D, I, database.get_idx_face)
+            _, D, I = index.range_search(x=features, thresh=clip_threshold)
+            results = merge_faiss_results_1d(D, I, database.get_idx, face_results)
+            search_time = time.perf_counter() - search_start
+            print(f"Search time: {search_time:.4f}s")
 
+        # Do display
         for j, result in enumerate(results):
             if j <= offset:
                 continue
