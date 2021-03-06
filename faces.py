@@ -6,6 +6,7 @@ import numpy as np
 import cv2
 import torch
 import torchvision.ops
+import xdg.BaseDirectory
 from torchvision import transforms
 from retinaface.pre_trained_models import get_model
 from align_faces import warp_and_crop_face
@@ -28,7 +29,7 @@ def load_arcface():
     global face_model
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        checkpoint = torch.load(os.getenv("HOME") + "/.cache/InsightFace-v2/BEST_checkpoint_r101.tar", map_location=torch.device(device))
+        checkpoint = torch.load(os.path.join(xdg.BaseDirectory.xdg_cache_home, "InsightFace-v2/BEST_checkpoint_r101.tar"), map_location=torch.device(device))
         face_model = checkpoint['model'].module.to(device)
         face_model.device = device
         face_model.eval()
@@ -74,8 +75,13 @@ def annotate(annotations, filename=None, image=None, scale=1.0, face_id=None):
         y = bbox[1] - 4
         if y - 24 < 0:
             y = bbox[3] + 28
-        image = cv2.putText(image, str(i), (bbox[0], y), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 4, cv2.LINE_AA)
-        image = cv2.putText(image, str(i), (bbox[0], y), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 1, cv2.LINE_AA)
+
+        tag = ""
+        if 'tag' in annotation:
+            tag = annotation['tag']
+
+        image = cv2.putText(image, str(i) + tag, (bbox[0], y), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 4, cv2.LINE_AA)
+        image = cv2.putText(image, str(i) + tag, (bbox[0], y), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 1, cv2.LINE_AA)
     return image
 
 # image needs to be RGB not BGR
