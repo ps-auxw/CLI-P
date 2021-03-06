@@ -36,8 +36,9 @@ def merge_faiss_results_1d(D, I, lookup, check_list):
             continue
         fix_idx = lookup(index)
         if index not in results or D[i] > results[index][0]:
-            if str(fix_idx) in check_list:
-                results[index] = [fix_idx, D[i]]
+            key = str(fix_idx)
+            if key in check_list:
+                results[index] = [(fix_idx, check_list[key][0]), D[i]]
     return sorted(results.values(), key=lambda x: x[1], reverse=True)
 
 def merge_faiss_results_1d_dict(D, I, lookup):
@@ -46,8 +47,8 @@ def merge_faiss_results_1d_dict(D, I, lookup):
         if index < 0:
             continue
         fix_idx = lookup(index)
-        if index not in results or D[i] > results[str(fix_idx[0])]:
-            results[str(fix_idx[0])] = D[i]
+        if index not in results or D[i] > results[str(fix_idx[0])][1]:
+            results[str(fix_idx[0])] = [fix_idx[1], D[i]]
     return results
 
 #device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -59,10 +60,10 @@ model.eval()
 database.open_db()
 
 index = faiss.read_index("images.index")
-index.nprobe = 32
+index.nprobe = 64
 
 faces_index = faiss.read_index("faces.index")
-faces_index.nprobe = 32
+faces_index.nprobe = 64
 
 in_text = ""
 texts = None
@@ -174,10 +175,12 @@ try:
                 print("Not found.")
                 continue
             results = [(image_id, 1.0)] * k
-            search_mode = -1
+            search_mode = -2
+            last_vector = None
         elif in_text.startswith('if '):
             try:
                 search_mode = 1
+                last_vector = None
                 parts = in_text[3:].split(" ", 3)
                 image_id = int(parts[0])
                 face_id = int(parts[1])
@@ -196,6 +199,7 @@ try:
             except:
                 print("Not found.")
                 search_mode = -1
+                last_vector = None
                 continue
         elif in_text.startswith('i '):
             image_id = int(in_text[2:])
@@ -209,6 +213,7 @@ try:
                 print("Not found.")
                 continue
             search_mode = 0
+            last_vector = None
         elif in_text == '':
             offset = last_j
             if features is None and search_mode > 0:
@@ -219,6 +224,7 @@ try:
             texts = clip.tokenize([in_text]).to(device)
             features = normalize(model.encode_text(texts).detach().cpu().numpy().astype('float32'))
             search_mode = 0
+            last_vector = None
 
         # Do search
         if search_mode == 0:
@@ -241,6 +247,7 @@ try:
             _, D, I = faces_index.range_search(x=face_features, thresh=face_threshold)
             face_results = merge_faiss_results_1d_dict(D, I, database.get_idx_face)
             _, D, I = index.range_search(x=features, thresh=clip_threshold)
+            np.set_printoptions(threshold=np.inf)
             results = merge_faiss_results_1d(D, I, database.get_idx, face_results)
             search_time = time.perf_counter() - search_start
             print(f"Search time: {search_time:.4f}s")
@@ -261,14 +268,14 @@ try:
                 result[0] = result[0][0]
                 tfn = database.get_fix_idx_filename(result[0])
                 vector = database.get_fix_idx_vector(result[0])
-                if last_vector is not None and np.array_equal(vector, last_vector):
+                if last_vector is not None and np.array_equal(vector, last_vector) and search_mode != -2:
                     continue
                 last_vector = vector
                 output = f"{result[1]:.4f} {result[0]} {face_id} {tfn}"
             else:
                 tfn = database.get_fix_idx_filename(result[0])
                 vector = database.get_fix_idx_vector(result[0])
-                if last_vector is not None and np.array_equal(vector, last_vector):
+                if last_vector is not None and np.array_equal(vector, last_vector) and search_mode != -2:
                     continue
                 last_vector = vector
                 output = f"{result[1]:.4f} {result[0]} {tfn}"
