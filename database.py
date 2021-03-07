@@ -124,13 +124,13 @@ def sha256(buf):
 
 def encode_face(annotation):
     f = annotation
-    buf = struct.pack('<HHHHfHHHHHHHHHH', f['bbox'][0], f['bbox'][1], f['bbox'][2], f['bbox'][3], f['score'], f['landmarks'][0][0], f['landmarks'][0][1], f['landmarks'][1][0], f['landmarks'][1][1], f['landmarks'][2][0], f['landmarks'][2][1], f['landmarks'][3][0], f['landmarks'][3][1], f['landmarks'][4][0], f['landmarks'][4][1]) + f['embedding'].reshape((1,512)).astype('float32').tobytes()
+    buf = struct.pack('<hhhhfhhhhhhhhhh', f['bbox'][0], f['bbox'][1], f['bbox'][2], f['bbox'][3], f['score'], f['landmarks'][0][0], f['landmarks'][0][1], f['landmarks'][1][0], f['landmarks'][1][1], f['landmarks'][2][0], f['landmarks'][2][1], f['landmarks'][3][0], f['landmarks'][3][1], f['landmarks'][4][0], f['landmarks'][4][1]) + f['embedding'].reshape((1,512)).astype('float32').tobytes()
     return buf
 
 def decode_face(raw_face):
     annotation = {'bbox' : [0, 0, 0, 0], 'score': -1, 'landmarks': [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0]], 'embedding': np.zeros((1, 512))}
     f = annotation
-    f['bbox'][0], f['bbox'][1], f['bbox'][2], f['bbox'][3], f['score'], f['landmarks'][0][0], f['landmarks'][0][1], f['landmarks'][1][0], f['landmarks'][1][1], f['landmarks'][2][0], f['landmarks'][2][1], f['landmarks'][3][0], f['landmarks'][3][1], f['landmarks'][4][0], f['landmarks'][4][1] = struct.unpack('<HHHHfHHHHHHHHHH', raw_face[0:32])
+    f['bbox'][0], f['bbox'][1], f['bbox'][2], f['bbox'][3], f['score'], f['landmarks'][0][0], f['landmarks'][0][1], f['landmarks'][1][0], f['landmarks'][1][1], f['landmarks'][2][0], f['landmarks'][2][1], f['landmarks'][3][0], f['landmarks'][3][1], f['landmarks'][4][0], f['landmarks'][4][1] = struct.unpack('<hhhhfhhhhhhhhhh', raw_face[0:32])
     f['embedding'] = np.frombuffer(raw_face[32:2080], np.float32).reshape((1,512))
     return annotation
 
