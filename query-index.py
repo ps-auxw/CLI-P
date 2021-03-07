@@ -2,6 +2,7 @@ import time
 import os
 import os.path
 import sys
+import re
 import numpy as np
 import lmdb
 import torch
@@ -96,17 +97,19 @@ results = None
 skip_same = config.get_setting_bool("skip_same", True)
 last_vector = None
 face_features = None
+file_filter = None
+file_filter_mode = True # Inverted?
 try:
     while in_text != 'q':
         # Handle commands
-        prefix = "[h,q,l,i,if,t,t+,t-,t?,s,sp,r,a,c,ft,ct,p,k] "
+        prefix = "[h,q,l,i,if,t,t+,t-,t?,ff,s,sp,r,a,c,ft,ct,p,k] "
         if not show_prefix:
             prefix = ""
         in_text = input(prefix + ">>> ").strip()
         if in_text == 'q':
             break
         elif in_text == 'h':
-            print("Enter a search query and you will receive a list of best matching\nimages. The first number is the difference score, the second the\nimage ID followed by the filename.\n\nPress q to stop viewing image and space for the next image.\n\nJust press enter for more results.\n\nCommands:\nq\tQuit\nl ID\tShow the image with the given ID and list faces\ni ID\tFind images similar to ID\nif ID F [S]\tFind images with faces similar to face F in image ID with optional query S\nt TAG [S]\tFind images with faces tagged TAG and optional query S\nt+ TAG ID F\tAdd face F from image ID to tag TAG\nt- TAG ID F\tRemove face F from image ID from tag TAG\nt? TAG\tList which faces from which images belong to TAG\ns\tToggle display of on-image face annotations\nsp\tToggle whether to show prompt prefix\nr [RES]\tSet maximum resolution (e.g. 1280x720)\na\tToggle align window position\nc NUM\tSet default number of results to NUM\nft THRES\tSet face similarity cutoff point in [0, 1]\nct THRES\tSet clip similarity cutoff point in [0, 1] for mixed search\np NUM\tSet number of subsets to probe (1-100, 32 default)\nk\tSkip images with identical CLIP features\nh\tShow this help")
+            print("Enter a search query and you will receive a list of best matching\nimages. The first number is the difference score, the second the\nimage ID followed by the filename.\n\nPress q to stop viewing image and space for the next image.\n\nJust press enter for more results.\n\nCommands:\nq\tQuit\nl ID\tShow the image with the given ID and list faces\ni ID\tFind images similar to ID\nif ID F [S]\tFind images with faces similar to face F in image ID with optional query S\nt TAG [S]\tFind images with faces tagged TAG and optional query S\nt+ TAG ID F\tAdd face F from image ID to tag TAG\nt- TAG ID F\tRemove face F from image ID from tag TAG\nt? TAG\tList which faces from which images belong to TAG\nff [RE]\tSet filename filter regular expression\nff!\tToggle filename filter inversion\nToggle s\tToggle display of on-image face annotations\nsp\tToggle whether to show prompt prefix\nr [RES]\tSet maximum resolution (e.g. 1280x720)\na\tToggle align window position\nc NUM\tSet default number of results to NUM\nft THRES\tSet face similarity cutoff point in [0, 1]\nct THRES\tSet clip similarity cutoff point in [0, 1] for mixed search\np NUM\tSet number of subsets to probe (1-100, 32 default)\nk\tSkip images with identical CLIP features\nh\tShow this help")
             continue
         elif in_text.startswith('ct '):
             threshold = float(in_text[3:])
@@ -160,6 +163,17 @@ try:
             else:
                 print("Not prompt prefix.")
             continue
+        elif in_text == 'ff!':
+            file_filter_mode = not file_filter_mode
+            if file_filter_mode:
+                print("Showing files with matching filenames.")
+            else:
+                print("Skipping files with matching filenames.")
+            continue
+        elif in_text == 'ff':
+            file_filter = None
+            print("Disabled filename filter.")
+            continue
         elif in_text == 'a':
             align_window = not align_window
             config.set_setting_bool("align_window", align_window)
@@ -167,6 +181,10 @@ try:
                 print("Aligning window position.")
             else:
                 print("Not aligning window position.")
+            continue
+        elif in_text.startswith('ff '):
+            file_filter = re.compile(in_text[3:])
+            print("Set filename filter regular expression.")
             continue
         elif in_text.startswith('r '):
             res = in_text[2:]
@@ -347,10 +365,11 @@ try:
             print(f"Search time: {search_time:.4f}s")
 
         # Do display
+        compensate = 0
         for j, result in enumerate(results):
-            if j <= offset:
+            if j - compensate <= offset:
                 continue
-            if j >= offset + k:
+            if j - compensate >= offset + k:
                 break
             if search_mode == 1 and result[1] < face_threshold:
                 break
@@ -363,6 +382,7 @@ try:
                 tfn = database.get_fix_idx_filename(result[0])
                 vector = database.get_fix_idx_vector(result[0])
                 if last_vector is not None and np.array_equal(vector, last_vector) and search_mode != -2:
+                    compensate += 1
                     continue
                 last_vector = vector
                 output = f"{result[1]:.4f} {result[0]} {face_id} {tfn}"
@@ -370,12 +390,18 @@ try:
                 tfn = database.get_fix_idx_filename(result[0])
                 vector = database.get_fix_idx_vector(result[0])
                 if last_vector is not None and np.array_equal(vector, last_vector) and search_mode != -2:
+                    compensate += 1
                     continue
                 last_vector = vector
                 output = f"{result[1]:.4f} {result[0]} {tfn}"
+            if file_filter is not None:
+              if (re.search(file_filter, tfn) is None) == file_filter_mode:
+                compensate += 1
+                continue
             try:
                 image = cv2.imread(tfn, cv2.IMREAD_COLOR)
                 if image is None or image.shape[0] < 2:
+                    compensate += 1
                     continue
                 h, w, _ = image.shape
                 scale = 1.0
@@ -419,6 +445,7 @@ try:
                 if do_break:
                     break
             except:
+                compensate += 1
                 continue
         cv2.destroyAllWindows()
 except EOFError:
