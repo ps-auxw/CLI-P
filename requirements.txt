@@ -7,3 +7,4 @@ torchvision==0.8.2
 sklearn
 scikit-image
 pyxdg
+faiss-cpu==1.7.0

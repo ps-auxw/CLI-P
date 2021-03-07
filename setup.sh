@@ -12,17 +12,8 @@ pip3 install -r requirements.txt
 git submodule init
 git submodule update
 
-# Install faiss for fast similarity search
-OLD_CWD="$(pwd)"
-cd faiss
-perl -pi -e 's!cmake_minimum_required\(VERSION 3.17 FATAL_ERROR\)!cmake_minimum_required(VERSION 3.16 FATAL_ERROR)!' CMakeLists.txt ./faiss/python/CMakeLists.txt
-cmake -B build . -DFAISS_ENABLE_GPU=OFF -DBUILD_TESTING=OFF -DFAISS_ENABLE_PYTHON=ON -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release
-make -C build/ -j4 faiss
-make -C build/ -j4 swigfaiss
-cd build/faiss/python && python setup.py install
-cd "$OLD_CWD"
-
 # Install CLIP
+OLD_CWD="$(pwd)"
 cd CLIP
 python setup.py install
 cd "$OLD_CWD"
