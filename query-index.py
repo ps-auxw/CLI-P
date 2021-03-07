@@ -21,6 +21,11 @@ try:
 except:
     pass
 
+def go(j, go_dir, compensate):
+    if go_dir == 0:
+        return j + 1, compensate + 1
+    return max(0, j + go_dir), max(0, compensate + go_dir)
+
 def normalize(v):
     norm = np.linalg.norm(v)
     if norm < 0.000000001: 
@@ -111,7 +116,42 @@ try:
         if in_text == 'q':
             break
         elif in_text == 'h':
-            print("Enter a search query and you will receive a list of best matching\nimages. The first number is the difference score, the second the\nimage ID followed by the filename.\n\nPress q to stop viewing image and space for the next image.\n\nJust press enter for more results.\n\nCommands:\nq\tQuit\nl ID\tShow the image with the given ID and list faces\ni ID\tFind images similar to ID\nif ID F [S]\tFind images with faces similar to face F in image ID with optional query S\nt TAG [S]\tFind images with faces tagged TAG and optional query S\nT TAG [S]\tLike 't', but an average face embedding is added to the search\nt+ TAG ID F\tAdd face F from image ID to tag TAG\nt- TAG ID F\tRemove face F from image ID from tag TAG\nt? TAG\tList which faces from which images belong to TAG\nff [RE]\tSet filename filter regular expression\nff!\tToggle filename filter inversion\nToggle s\tToggle display of on-image face annotations\nsp\tToggle whether to show prompt prefix\nr [RES]\tSet maximum resolution (e.g. 1280x720)\na\tToggle align window position\nc NUM\tSet default number of results to NUM\nft THRES\tSet face similarity cutoff point in [0, 1] (default: 0.3)\nct THRES\tSet clip similarity cutoff point in [0, 1] for mixed search (default: 0.19)\np NUM\tSet number of subsets to probe (1-100, 32 default)\nk\tSkip images with identical CLIP features\ngl NUM\tSet maximum internal search result number (default: 65536)\nh\tShow this help")
+            print("Enter a search query and you will receive a list of best matching\n"
+                  "images. The first number is the difference score, the second the\n"
+                  "image ID followed by the filename.\n"
+                  "\n"
+                  "Press q to stop viewing image and space for the next image. Go back\n"
+                  "by pressing a or backspace.\n"
+                  "\n"
+                  "While tag searching, press + in the window to add the green\n"
+                  "detection to the tag. Press - to remove yellow the yellow frame.\n"
+                  "\n"
+                  "Just press enter for more results.\n"
+                  "\n"
+                  "Commands:\n"
+                  "q\t\tQuit\n"
+                  "l ID\t\tShow the image with the given ID and list faces\n"
+                  "i ID\t\tFind images similar to ID\n"
+                  "if ID F [S]\tFind images with faces similar to face F in image ID with optional query S\n"
+                  "t TAG [S]\tFind images with faces tagged TAG and optional query S\n"
+                  "T TAG [S]\tLike 't', but an average face embedding is added to the search\n"
+                  "t+ TAG ID F\tAdd face F from image ID to tag TAG\n"
+                  "t- TAG ID F\tRemove face F from image ID from tag TAG\n"
+                  "t? TAG\t\tList which faces from which images belong to TAG\n"
+                  "ff [RE]\t\tSet filename filter regular expression\n"
+                  "ff!\t\tToggle filename filter inversion\n"
+                  "s\t\tToggle display of on-image face annotations\n"
+                  "sp\t\tToggle whether to show prompt prefix\n"
+                  "r [RES]\t\tSet maximum resolution (e.g. 1280x720)\n"
+                  "a\t\tToggle align window position\n"
+                  "c NUM\t\tSet default number of results to NUM\n"
+                  "ft THRES\tSet face similarity cutoff point in [0, 1] (default: 0.3)\n"
+                  "ct THRES\tSet clip similarity cutoff point in [0, 1] for mixed search (default: 0.19)\n"
+                  "p NUM\t\tSet number of subsets to probe (1-100, 32 default)\n"
+                  "k\t\tSkip images with identical CLIP features\n"
+                  "gl NUM\t\tSet maximum internal search result number (default: 65536)\n"
+                  "h\t\tShow this help"
+                 )
             continue
         elif in_text.startswith('gl '):
             try:
@@ -433,41 +473,52 @@ try:
 
         # Do display
         compensate = 0
-        for j, result in enumerate(results):
+        #for j, result in enumerate(results):
+        n_results = len(results)
+        j = 0
+        go_dir = 1
+        while j < n_results:
             if j - compensate <= offset:
+                j += 1
                 continue
             if j - compensate >= offset + k:
                 break
+            j = min(max(j, 0), n_results - 1)
+            result = results[j]
             if search_mode == 1 and result[1] < face_threshold:
                 break
+            fix_idx = None
             face_id = None
             output = ""
             last_j = j
             if type(result[0]) is tuple:
                 face_id = result[0][1]
-                result[0] = result[0][0]
-                tfn = database.get_fix_idx_filename(result[0])
-                vector = database.get_fix_idx_vector(result[0])
-                if last_vector is not None and np.array_equal(vector, last_vector) and search_mode != -2:
-                    compensate += 1
+                fix_idx = result[0][0]
+                tfn = database.get_fix_idx_filename(fix_idx)
+                vector = database.get_fix_idx_vector(fix_idx)
+                if last_vector is not None and np.array_equal(vector, last_vector) and search_mode != -2 and tried_j != j:
+                    tried_j = j
+                    j, compensate = go(j, go_dir, compensate)
                     continue
                 last_vector = vector
-                output = f"{result[1]:.4f} {result[0]} {face_id} {tfn}"
+                output = f"{result[1]:.4f} {fix_idx} {face_id} {tfn}"
             else:
-                tfn = database.get_fix_idx_filename(result[0])
-                vector = database.get_fix_idx_vector(result[0])
+                fix_idx = result[0]
+                tfn = database.get_fix_idx_filename(fix_idx)
+                vector = database.get_fix_idx_vector(fix_idx)
                 if last_vector is not None and np.array_equal(vector, last_vector) and search_mode != -2:
-                    compensate += 1
+                    j, compensate = go(j, go_dir, compensate)
                     continue
                 last_vector = vector
-                output = f"{result[1]:.4f} {result[0]} {tfn}"
+                output = f"{result[1]:.4f} {fix_idx} {tfn}"
             if file_filter is not None:
                 if (re.search(file_filter, tfn) is None) == file_filter_mode:
-                    compensate += 1
+                    j, compensate = go(j, go_dir, compensate)
                     continue
+            tried_j = -1
             annotations = None
             if show_faces or target_tag is not None:
-                annotations = database.get_faces(database.i2b(result[0]))
+                annotations = database.get_faces(database.i2b(fix_idx))
                 found_tag = False
                 for a_i, annotation in enumerate(annotations):
                     annotation['tag'] = config.get_face_tag(annotation['embedding'], face_threshold)
@@ -476,12 +527,12 @@ try:
                     if target_tag is not None and annotation['tag'] == target_tag:
                         found_tag = True
                 if target_tag is not None and not found_tag:
-                    compensate += 1
+                    j, compensate = go(j, go_dir, compensate)
                     continue
             try:
                 image = cv2.imread(tfn, cv2.IMREAD_COLOR)
                 if image is None or image.shape[0] < 2:
-                    compensate += 1
+                    j, compensate = go(j, go_dir, compensate)
                     continue
                 h, w, _ = image.shape
                 scale = 1.0
@@ -519,15 +570,34 @@ try:
                     if key == ord('q'):
                         do_break = True
                         break
+                    elif key == ord(' '):
+                        go_dir = 1
+                        break
+                    elif key == ord('a') or key == 8:
+                        go_dir = -1
+                        break
+                    elif key == ord('+'):
+                        go_dir = 1
+                        if target_tag is not None:
+                            result[1] = 1.0
+                            config.add_tag(target_tag, fix_idx, face_id)
+                        break
+                    elif key == ord('-'):
+                        go_dir = 1
+                        if target_tag is not None:
+                            result[1] = face_threshold + 0.00001
+                            config.del_tag(target_tag, fix_idx, face_id)
+                        break
                 if do_break:
                     break
             except:
-                compensate += 1
+                j, compensate = go(j, go_dir, compensate)
                 continue
+            j = j + go_dir
         cv2.destroyAllWindows()
 except EOFError:
     print("Interrupted.")
-except KeyboardInterrupt:
+except FileNotFoundError:
     print("Interrupted.")
 
 sys.exit(0)
