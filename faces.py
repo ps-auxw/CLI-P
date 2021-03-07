@@ -58,19 +58,40 @@ def embed_faces(annotations, filename=None, image=None):
             annotation['embedding'] = embedding[i]
         return True
 
-def annotate(annotations, filename=None, image=None, scale=1.0, face_id=None):
+def reorient(w, h, points, orientation):
+    if orientation is None or orientation == 1:
+        return points
+    if len(points) == 4:
+        a, b = reorient(w, h, (points[0], points[1]), orientation)
+        c, d = reorient(w, h, (points[2], points[3]), orientation)
+        return (min(a,c), min(b,d), max(a,c), max(b,d))
+    if orientation == 3:
+        # 180 degrees
+        return (w - points[0], h - points[1])
+    elif orientation == 6:
+        # 270 degrees
+        return (w - points[1], points[0])
+    elif orientation == 8:
+        # 90 degrees
+        return (points[1], points[0])
+    return points
+
+def annotate(annotations, filename=None, image=None, scale=1.0, face_id=None, orientation=None):
     if image is None and filename is not None:
         image = cv2.imread(filename)
     if image is None:
         return None
     for i, annotation in enumerate(annotations):
+        h, w, _ = image.shape
         color = (0, 0, 255)
         if face_id is not None and face_id == i:
             color = (0, 255, 0)
         bbox = (int(annotation['bbox'][0] * scale + 0.5), int(annotation['bbox'][1] * scale + 0.5), int(annotation['bbox'][2] * scale + 0.5), int(annotation['bbox'][3] * scale + 0.5))
+        bbox = reorient(w, h, bbox, orientation)
         image = cv2.rectangle(image, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color, 2)
         for landmark in annotation['landmarks']:
-            image = cv2.circle(image, (int(landmark[0] * scale + 0.5), int(landmark[1] * scale + 0.5)), 1, (0, 0, 255), 2)
+            landmark = reorient(w, h, (int(landmark[0] * scale + 0.5), int(landmark[1] * scale + 0.5)), orientation)
+            image = cv2.circle(image, landmark, 1, (0, 0, 255), 2)
 
         y = bbox[1] - 4
         if y - 24 < 0:

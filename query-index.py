@@ -7,7 +7,7 @@ import lmdb
 import torch
 import clip
 import faiss
-from PIL import Image
+from PIL import Image, ExifTags
 import cv2
 
 import config
@@ -72,6 +72,10 @@ index.nprobe = config.get_setting_int("probe", 64)
 
 faces_index = faiss.read_index("faces.index")
 faces_index.nprobe = config.get_setting_int("probe", 64)
+
+for orientation in ExifTags.TAGS.keys():
+    if ExifTags.TAGS[orientation] == 'Orientation':
+        break
 
 in_text = ""
 texts = None
@@ -325,7 +329,9 @@ try:
                     annotations = database.get_faces(database.i2b(result[0]))
                     for annotation in annotations:
                         annotation['tag'] = config.get_face_tag(annotation['embedding'], face_threshold)
-                    image = annotate_faces(annotations, image=image, scale=scale, face_id=face_id)
+                    pillow_image = Image.open(tfn)
+                    exif_data = pillow_image._getexif()
+                    image = annotate_faces(annotations, image=image, scale=scale, face_id=face_id, orientation=exif_data[orientation])
                 cv2.imshow('Image', image)
                 if align_window:
                     cv2.moveWindow('Image', 0, 0)
