@@ -289,7 +289,9 @@ try:
 
             features = config.get_tag_embeddings(tag)
             if in_text.startswith('T '):
-                features = np.append(features, features.mean(0, keepdims=True), axis=0)
+                average = features.mean(0, keepdims=True)
+                average = normalize(average)
+                features = np.append(features, average, axis=0)
             if features is None:
                 print("Not found.")
                 search_mode = -1
