@@ -103,14 +103,14 @@ file_filter_mode = True # Inverted?
 try:
     while in_text != 'q':
         # Handle commands
-        prefix = "[h,q,l,i,if,t,t+,t-,t?,ff,s,sp,r,a,c,ft,ct,p,k,gl] "
+        prefix = "[h,q,l,i,if,t,T,t+,t-,t?,ff,s,sp,r,a,c,ft,ct,p,k,gl] "
         if not show_prefix:
             prefix = ""
         in_text = input(prefix + ">>> ").strip()
         if in_text == 'q':
             break
         elif in_text == 'h':
-            print("Enter a search query and you will receive a list of best matching\nimages. The first number is the difference score, the second the\nimage ID followed by the filename.\n\nPress q to stop viewing image and space for the next image.\n\nJust press enter for more results.\n\nCommands:\nq\tQuit\nl ID\tShow the image with the given ID and list faces\ni ID\tFind images similar to ID\nif ID F [S]\tFind images with faces similar to face F in image ID with optional query S\nt TAG [S]\tFind images with faces tagged TAG and optional query S\nt+ TAG ID F\tAdd face F from image ID to tag TAG\nt- TAG ID F\tRemove face F from image ID from tag TAG\nt? TAG\tList which faces from which images belong to TAG\nff [RE]\tSet filename filter regular expression\nff!\tToggle filename filter inversion\nToggle s\tToggle display of on-image face annotations\nsp\tToggle whether to show prompt prefix\nr [RES]\tSet maximum resolution (e.g. 1280x720)\na\tToggle align window position\nc NUM\tSet default number of results to NUM\nft THRES\tSet face similarity cutoff point in [0, 1] (default: 0.3)\nct THRES\tSet clip similarity cutoff point in [0, 1] for mixed search (default: 0.19)\np NUM\tSet number of subsets to probe (1-100, 32 default)\nk\tSkip images with identical CLIP features\ngl NUM\tSet maximum internal search result number (default: 65536)\nh\tShow this help")
+            print("Enter a search query and you will receive a list of best matching\nimages. The first number is the difference score, the second the\nimage ID followed by the filename.\n\nPress q to stop viewing image and space for the next image.\n\nJust press enter for more results.\n\nCommands:\nq\tQuit\nl ID\tShow the image with the given ID and list faces\ni ID\tFind images similar to ID\nif ID F [S]\tFind images with faces similar to face F in image ID with optional query S\nt TAG [S]\tFind images with faces tagged TAG and optional query S\nT TAG [S]\tLike 't', but an average face embedding is added to the search\nt+ TAG ID F\tAdd face F from image ID to tag TAG\nt- TAG ID F\tRemove face F from image ID from tag TAG\nt? TAG\tList which faces from which images belong to TAG\nff [RE]\tSet filename filter regular expression\nff!\tToggle filename filter inversion\nToggle s\tToggle display of on-image face annotations\nsp\tToggle whether to show prompt prefix\nr [RES]\tSet maximum resolution (e.g. 1280x720)\na\tToggle align window position\nc NUM\tSet default number of results to NUM\nft THRES\tSet face similarity cutoff point in [0, 1] (default: 0.3)\nct THRES\tSet clip similarity cutoff point in [0, 1] for mixed search (default: 0.19)\np NUM\tSet number of subsets to probe (1-100, 32 default)\nk\tSkip images with identical CLIP features\ngl NUM\tSet maximum internal search result number (default: 65536)\nh\tShow this help")
             continue
         elif in_text.startswith('gl '):
             limit = int(in_text[3:])
@@ -279,7 +279,7 @@ try:
             results = [(image_id, 1.0)] * k
             search_mode = -2
             last_vector = None
-        elif in_text.startswith('t '):
+        elif in_text.startswith('t ') or in_text.startswith('T '):
             search_mode = 1
             last_vector = None
             parts = in_text[2:].split(" ", 2)
@@ -288,6 +288,8 @@ try:
             last_j = 0
 
             features = config.get_tag_embeddings(tag)
+            if in_text.startswith('T '):
+                features = np.append(features, features.mean(0, keepdims=True), axis=0)
             if features is None:
                 print("Not found.")
                 search_mode = -1
