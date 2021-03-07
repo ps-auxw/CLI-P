@@ -328,9 +328,10 @@ try:
                     features = database.get_fix_idx_vector(image_id)
                     annotations = database.get_faces(database.i2b(image_id))
                     print(f"Showing {filename}:")
-                    print(f"Image\tFace\tBounding box")
+                    print(f"Image\tFace\tTag\tBounding box")
                     for i, annotation in enumerate(annotations):
-                        print(f"{image_id}\t{i}\t{annotation['bbox']}")
+                        tag = config.get_face_tag(annotation['embedding'], face_threshold)
+                        print(f"{image_id}\t{i}\t{tag}\t{annotation['bbox']}")
                 except:
                     print("Not found.")
                     continue
