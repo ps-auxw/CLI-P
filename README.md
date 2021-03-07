@@ -18,7 +18,8 @@ numbers of images.
 
 To set things up, follow (or run) `setup.sh`. You may want to look at
 the first few lines of `build-index.py` and adjust the variables there
-to your liking.
+to your liking. If you run it, you should get a message `All done.` at
+the end.
 
 If you are running Debian buster, install cmake 3.16 from
 `buster-backports` first.

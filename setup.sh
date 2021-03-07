@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -eu
+set -e
 
 # Set up python virtualenv
 virtualenv -p python3.7 env
@@ -47,3 +47,5 @@ DOWNLOAD_CACHE_DIR="${XDG_CACHE_HOME-$HOME/.cache}/InsightFace-v2"
 mkdir -p "$DOWNLOAD_CACHE_DIR"
 wget -c 'https://github.com/foamliu/InsightFace-v2/releases/download/v1.0/BEST_checkpoint_r101.tar' -O "$DOWNLOAD_CACHE_DIR/BEST_checkpoint_r101.tar"
 sha256sum -c <<< "c32fab2e978b25def0c201b5b5948e7068944d113438105b5b291f145393c95a  $DOWNLOAD_CACHE_DIR/BEST_checkpoint_r101.tar"
+
+echo "All done."
