@@ -44,7 +44,9 @@ def load_tags():
                 tag_map[tag_name] = []
                 tag_cursor = txn.cursor(tags_db)
                 if tag_cursor.set_key(name):
-                    for _, tag_data in tag_cursor:
+                    for name_key, tag_data in tag_cursor:
+                        if name_key != name:
+                            break
                         fix_idx = database.i2b(b2i(tag_data))
                         face_idx = tag_data[8:10]
                         annotation = database.get_face(fix_idx, face_idx)
@@ -74,7 +76,7 @@ def add_tag(name, fix_idx, face_idx):
                 txn.put(key, value)
                 if name not in tag_map:
                     tag_map[name] = []
-                tag_map[name].append((fix_idx, face_idx, len(tag_list), embedding.reshape((512,))))
+                tag_map[name].append((database.i2b(fix_idx), face_key, len(tag_list), embedding.reshape((512,))))
                 tag_list.append(name)
                 index.add(embedding)
         with env.begin(db=tag_name_db, write=True) as txn:
@@ -106,13 +108,14 @@ def get_tag_embeddings(name):
     return np.array(embeddings)
 
 def del_tag(name, fix_idx, face_idx):
+    res = False
     with env.begin(db=tags_db, write=True) as txn:
         face_key = s2b(face_idx)
         key = name.encode()
         value = i2b(fix_idx) + face_key
         res = txn.delete(key, value=value)
-        load_tags() # TODO: Replace this if this ever gets too slow
-        return res
+    load_tags() # TODO: Replace this if this ever gets too slow
+    return res
 
 # Settings functions
 def set_setting(name, value, conv):

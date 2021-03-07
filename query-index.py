@@ -195,10 +195,34 @@ try:
                 continue
             print(f"Showing {k} results.")
             continue
+        elif in_text.startswith('t+ '):
+            try:
+                parts = in_text[3:].split(" ")
+                tag = parts[0]
+                image_id = int(parts[1])
+                face_id = int(parts[2])
+                if not config.add_tag(tag, image_id, face_id):
+                    raise Exception
+                print(f"Added face {face_id} from image {image_id} to tag {tag}.")
+            except:
+                print("Adding to tag failed.")
+            continue
+        elif in_text.startswith('t- '):
+            try:
+                parts = in_text[3:].split(" ")
+                tag = parts[0]
+                image_id = int(parts[1])
+                face_id = int(parts[2])
+                if not config.del_tag(tag, image_id, face_id):
+                    raise Exception
+                print(f"Removed face {face_id} from image {image_id} from tag {tag}.")
+            except:
+                print("Removing from tag failed.")
+            continue
         elif in_text.startswith('t? '):
             tag = in_text[3:]
             results = config.get_tag_contents(tag)
-            if results is None:
+            if results is None or tag == "" or len(results) < 1:
                 print("Not found.")
                 continue
             offset = -1
@@ -377,10 +401,10 @@ try:
                         annotation['tag'] = config.get_face_tag(annotation['embedding'], face_threshold)
                     pillow_image = Image.open(tfn)
                     exif_data = pillow_image._getexif()
-                    orientation = None
-                    if exif_data is not None:
-                        orientation = exif_data[orientation]
-                    image = annotate_faces(annotations, image=image, scale=scale, face_id=face_id, orientation=orientation, skip_landmarks=True)
+                    exif_orientation = None
+                    if exif_data is not None and orientation in exif_data:
+                        exif_orientation = exif_data[orientation]
+                    image = annotate_faces(annotations, image=image, scale=scale, face_id=face_id, orientation=exif_orientation, skip_landmarks=True)
                 cv2.imshow('Image', image)
                 if align_window:
                     cv2.moveWindow('Image', 0, 0)
