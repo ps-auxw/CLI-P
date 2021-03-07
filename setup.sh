@@ -44,4 +44,4 @@ python setup.py install
 mkdir -p ~/.cache/InsightFace-v2
 CHECKPOINT_PATH="$(python -c "$(echo -e "import xdg.BaseDirectory\nimport os\nprint(os.path.join(xdg.BaseDirectory.xdg_cache_home, 'InsightFace-v2', 'BEST_checkpoint_r101.tar'))")")"
 wget -c 'https://github.com/foamliu/InsightFace-v2/releases/download/v1.0/BEST_checkpoint_r101.tar' -O "$CHECKPOINT_PATH"
-sha256sum -c <<< "c32fab2e978b25def0c201b5b5948e7068944d113438105b5b291f145393c95a  $HOME/.cache/InsightFace-v2/BEST_checkpoint_r101.tar"
+sha256sum -c <<< "c32fab2e978b25def0c201b5b5948e7068944d113438105b5b291f145393c95a  $CHECKPOINT_PATH"
