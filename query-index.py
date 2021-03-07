@@ -114,41 +114,49 @@ try:
             print("Enter a search query and you will receive a list of best matching\nimages. The first number is the difference score, the second the\nimage ID followed by the filename.\n\nPress q to stop viewing image and space for the next image.\n\nJust press enter for more results.\n\nCommands:\nq\tQuit\nl ID\tShow the image with the given ID and list faces\ni ID\tFind images similar to ID\nif ID F [S]\tFind images with faces similar to face F in image ID with optional query S\nt TAG [S]\tFind images with faces tagged TAG and optional query S\nT TAG [S]\tLike 't', but an average face embedding is added to the search\nt+ TAG ID F\tAdd face F from image ID to tag TAG\nt- TAG ID F\tRemove face F from image ID from tag TAG\nt? TAG\tList which faces from which images belong to TAG\nff [RE]\tSet filename filter regular expression\nff!\tToggle filename filter inversion\nToggle s\tToggle display of on-image face annotations\nsp\tToggle whether to show prompt prefix\nr [RES]\tSet maximum resolution (e.g. 1280x720)\na\tToggle align window position\nc NUM\tSet default number of results to NUM\nft THRES\tSet face similarity cutoff point in [0, 1] (default: 0.3)\nct THRES\tSet clip similarity cutoff point in [0, 1] for mixed search (default: 0.19)\np NUM\tSet number of subsets to probe (1-100, 32 default)\nk\tSkip images with identical CLIP features\ngl NUM\tSet maximum internal search result number (default: 65536)\nh\tShow this help")
             continue
         elif in_text.startswith('gl '):
-            limit = int(in_text[3:])
-            if limit >= 0:
+            try:
+                limit = int(in_text[3:])
+                if limit < 0:
+                    raise Exception
                 growth_limit = limit
                 config.set_setting_float("growth_limit", growth_limit)
                 print(f"Set search growth limit to {growth_limit}.")
-                continue
-            print("Invalid search growth limit.")
+            except:
+                print("Invalid search growth limit.")
             continue
         elif in_text.startswith('ct '):
-            threshold = float(in_text[3:])
-            if threshold >= 0.0 and threshold <= 1.0:
+            try:
+                threshold = float(in_text[3:])
+                if threshold < 0.0 or threshold > 1.0:
+                    raise Exception
                 clip_threshold = threshold
                 config.set_setting_float("clip_threshold", clip_threshold)
                 print(f"Set CLIP similarity threshold to {clip_threshold}.")
-                continue
-            print("Invalid CLIP threshold value.")
+            finally:
+                print("Invalid CLIP threshold value.")
             continue
         elif in_text.startswith('ft '):
-            threshold = float(in_text[3:])
-            if threshold >= 0.0 and threshold <= 1.0:
+            try:
+                threshold = float(in_text[3:])
+                if threshold < 0.0 or threshold > 1.0:
+                    raise Exception
                 face_threshold = threshold
                 config.set_setting_float("face_threshold", face_threshold)
                 print(f"Set face similarity threshold to {face_threshold}.")
-                continue
-            print("Invalid face threshold value.")
+            finally:
+                print("Invalid face threshold value.")
             continue
         elif in_text.startswith('p '):
-            probe = int(in_text[2:])
-            if probe > 0 and probe < 101:
+            try:
+                probe = int(in_text[2:])
+                if probe <= 0 or probe > 100:
+                    raise Exception
                 index.nprobe = probe
                 faces_index.nprobe = probe
                 config.set_setting_int("probe", probe)
                 print(f"Set to probe {probe} subsets.")
-                continue
-            print("Invalid probe value.")
+            except:
+                print("Invalid probe value.")
             continue
         elif in_text == 'k':
             skip_same = not skip_same
@@ -217,12 +225,15 @@ try:
             print("Unset maximum resolution.")
             continue
         elif in_text.startswith('c '):
-            k = int(in_text[2:])
-            if k < 1:
-                k = 50
-                print("Reset number of results to 50.")
-                continue
-            print(f"Showing {k} results.")
+            try:
+                k = int(in_text[2:])
+                if k < 1:
+                    k = 50
+                    print("Reset number of results to 50.")
+                    continue
+                print(f"Showing {k} results.")
+            except:
+                print("Error")
             continue
         elif in_text.startswith('t+ '):
             try:
@@ -249,64 +260,76 @@ try:
                 print("Removing from tag failed.")
             continue
         elif in_text.startswith('t? '):
-            tag = in_text[3:]
-            results = config.get_tag_contents(tag)
-            if results is None or tag == "" or len(results) < 1:
-                print("Not found.")
-                continue
-            offset = -1
-            last_j = 0
-            print(f"Showing tag {tag}:")
-            print(f"Image\tFace")
-            for result, score in results:
-                print(f"{result[0]}\t{result[1]}")
-            search_mode = -2
-            target_tag = tag
-            last_vector = None
-        elif in_text.startswith('l '):
-            image_id = int(in_text[2:])
-            offset = -1
-            last_j = 0
             try:
-                filename = database.get_fix_idx_filename(image_id)
-                features = database.get_fix_idx_vector(image_id)
-                annotations = database.get_faces(database.i2b(image_id))
-                print(f"Showing {filename}:")
-                print(f"Image\tFace\tBounding box")
-                for i, annotation in enumerate(annotations):
-                    print(f"{image_id}\t{i}\t{annotation['bbox']}")
-            except:
-                print("Not found.")
-                continue
-            results = [(image_id, 1.0)] * k
-            search_mode = -2
-            target_tag = None
-            last_vector = None
-        elif in_text.startswith('t ') or in_text.startswith('T '):
-            search_mode = 1
-            last_vector = None
-            parts = in_text[2:].split(" ", 2)
-            tag = parts[0]
-            target_tag = tag
-            offset = -1
-            last_j = 0
-
-            features = config.get_tag_embeddings(tag)
-            if in_text.startswith('T '):
-                average = features.mean(0, keepdims=True)
-                average = normalize(average)
-                features = np.append(features, average, axis=0)
-            if features is None:
-                print("Not found.")
-                search_mode = -1
+                tag = in_text[3:]
+                results = config.get_tag_contents(tag)
+                if results is None or tag == "" or len(results) < 1:
+                    print("Not found.")
+                    continue
+                offset = -1
+                last_j = 0
+                print(f"Showing tag {tag}:")
+                print(f"Image\tFace")
+                for result, score in results:
+                    print(f"{result[0]}\t{result[1]}")
+                search_mode = -2
+                target_tag = tag
                 last_vector = None
+            except:
+                print("Error")
                 continue
-            if len(parts) > 1:
-                face_features = features
-                search_mode = 2
-                texts = clip.tokenize([parts[1]]).to(device)
-                features = normalize(model.encode_text(texts).detach().cpu().numpy().astype('float32'))
-            print(f"Similar faces to {tag}:")
+        elif in_text.startswith('l '):
+            try:
+                image_id = int(in_text[2:])
+                offset = -1
+                last_j = 0
+                try:
+                    filename = database.get_fix_idx_filename(image_id)
+                    features = database.get_fix_idx_vector(image_id)
+                    annotations = database.get_faces(database.i2b(image_id))
+                    print(f"Showing {filename}:")
+                    print(f"Image\tFace\tBounding box")
+                    for i, annotation in enumerate(annotations):
+                        print(f"{image_id}\t{i}\t{annotation['bbox']}")
+                except:
+                    print("Not found.")
+                    continue
+                results = [(image_id, 1.0)] * k
+                search_mode = -2
+                target_tag = None
+                last_vector = None
+            except:
+                print("Error")
+                continue
+        elif in_text.startswith('t ') or in_text.startswith('T '):
+            try:
+                search_mode = 1
+                last_vector = None
+                parts = in_text[2:].split(" ", 2)
+                tag = parts[0]
+                target_tag = tag
+                offset = -1
+                last_j = 0
+
+                features = config.get_tag_embeddings(tag)
+                if in_text.startswith('T '):
+                    average = features.mean(0, keepdims=True)
+                    average = normalize(average)
+                    features = np.append(features, average, axis=0)
+                if features is None:
+                    print("Not found.")
+                    search_mode = -1
+                    last_vector = None
+                    continue
+                if len(parts) > 1:
+                    face_features = features
+                    search_mode = 2
+                    texts = clip.tokenize([parts[1]]).to(device)
+                    features = normalize(model.encode_text(texts).detach().cpu().numpy().astype('float32'))
+                print(f"Similar faces to {tag}:")
+            except:
+                print("Error")
+                continue
         elif in_text.startswith('if '):
             try:
                 search_mode = 1
@@ -333,10 +356,10 @@ try:
                 last_vector = None
                 continue
         elif in_text.startswith('i '):
-            image_id = int(in_text[2:])
-            offset = -1
-            last_j = 0
             try:
+                image_id = int(in_text[2:])
+                offset = -1
+                last_j = 0
                 filename = database.get_fix_idx_filename(image_id)
                 features = database.get_fix_idx_vector(image_id)
                 print(f"Similar to {filename}:")
