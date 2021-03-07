@@ -1,27 +1,103 @@
 import lmdb
 import numpy as np
 import struct
+import faiss
+
 from numpack import *
+import database
 
 # LMDB environment
 env = None
 
 # Information about face tags
 tags_db = None
+tag_name_db = None
 
 # Settings
 settings_db = None
 
-# uint64
+# Tag index and mapping
+index = None
+tag_map = {}
+tag_list = []
+
+# Open database
 def open_db(map_size=1024*1024*1024):
-    global env, tags_db, settings_db
-    env = lmdb.open('config.lmdb', map_size=map_size, max_dbs=5)
-
-    tags_db = env.open_db(b'tags_db')
+    global env, tags_db, tag_name_db, settings_db, next_tag
+    env = lmdb.open('config.lmdb', map_size=map_size, max_dbs=3)
+    tag_name_db = env.open_db(b'tag_name_db')
+    tags_db = env.open_db(b'tags_db', dupsort=True)
     settings_db = env.open_db(b'settings_db')
+    load_tags()
 
-open_db()
+def load_tags():
+    global index, tag_map, tag_list
+    index = faiss.IndexFlatIP(512)
+    tag_map = {}
+    tag_list = []
+    embeddings = []
+    with env.begin() as txn:
+        cursor = txn.cursor(tag_name_db)
+        if cursor.first():
+            for name, _ in cursor:
+                tag_name = name.decode()
+                tag_map[tag_name] = []
+                tag_cursor = txn.cursor(tags_db)
+                if tag_cursor.set_key(name):
+                    for _, tag_data in tag_cursor:
+                        fix_idx = database.i2b(b2i(tag_data))
+                        face_idx = tag_data[8:10]
+                        annotation = database.get_face(fix_idx, face_idx)
+                        tag_map[tag_name].append((fix_idx, face_idx, len(tag_list)))
+                        tag_list.append(tag_name)
+                        embeddings.append(annotation['embedding'].reshape((512,)).astype('float32'))
+    if len(embeddings) > 0:
+        embeddings = np.array(embeddings)
+        if not index.is_trained:
+            index.train(embeddings)
+        index.add(embeddings)
 
+# Tag index functions
+def add_tag(name, fix_idx, face_idx):
+    if name == "":
+        return False
+    try:
+        with env.begin(db=tags_db, write=True) as txn:
+            cursor = txn.cursor()
+            annotation_key = database.i2b(fix_idx)
+            face_key = s2b(face_idx)
+            embedding = database.get_face(annotation_key, face_key)['embedding'].reshape((1 ,512)).astype('float32')
+            key = name.encode()
+            value = i2b(fix_idx) + face_key
+            if not cursor.set_key_dup(key, value):
+                txn.put(key, value)
+                if name not in tag_map:
+                    tag_map[name] = []
+                tag_map[name].append((fix_idx, face_idx, len(tag_list)))
+                tag_list.append(name)
+                index.add(embedding)
+        with env.begin(db=tag_name_db, write=True) as txn:
+            txn.put(name.encode(), b'1')
+        return True
+    except:
+        return False
+
+def get_face_tag(embedding, face_threshold):
+    D, I = index.search(embedding.reshape((1, 512)).astype('float32'), 1)
+    if len(I[0]) < 1 or I[0][0] < 0 or D[0][0] < face_threshold:
+        return ""
+    return tag_list[I[0][0]]
+
+def del_tag(name, fix_idx, face_idx):
+    with env.begin(db=tags_db, write=True) as txn:
+        face_key = s2b(face_idx)
+        key = name.encode()
+        value = i2b(fix_idx) + face_key
+        res = txn.delete(key, value=value)
+        load_tags() # TODO: Replace this if this ever gets too slow
+        return res
+
+# Settings functions
 def set_setting(name, value, conv):
     with env.begin(db=settings_db, write=True) as txn:
         txn.put(name.encode(), conv(value))

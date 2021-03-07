@@ -134,6 +134,11 @@ def decode_face(raw_face):
     f['embedding'] = np.frombuffer(raw_face[32:2080], np.float32).reshape((1,512))
     return annotation
 
+def get_face(idx, face_idx):
+    with env.begin(db=fix_idx_db) as txn:
+        raw_face = txn.get(idx + b'f' + face_idx)
+        return decode_face(raw_face)
+
 def get_faces(idx):
     with env.begin(db=fix_idx_db) as txn:
         res = txn.get(idx + b'f')
@@ -142,8 +147,7 @@ def get_faces(idx):
         else:
             annotations = []
             for i in range(b2i(res)):
-                raw_face = txn.get(idx + b'f' + s2b(i))
-                annotations.append(decode_face(raw_face))
+                annotations.append(get_face(idx, s2b(i)))
             return annotations
 
 def put_faces(idx, annotations):

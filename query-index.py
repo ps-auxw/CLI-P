@@ -65,6 +65,7 @@ model, transform = clip.load("ViT-B/32", device=device, jit=False)
 model.eval()
 
 database.open_db()
+config.open_db()
 
 index = faiss.read_index("images.index")
 index.nprobe = config.get_setting_int("probe", 64)
@@ -322,6 +323,8 @@ try:
                         image = cv2.resize(image, (int(w + 0.5), int(h + 0.5)), interpolation=cv2.INTER_LANCZOS4)
                 if show_faces:
                     annotations = database.get_faces(database.i2b(result[0]))
+                    for annotation in annotations:
+                        annotation['tag'] = config.get_face_tag(annotation['embedding'], face_threshold)
                     image = annotate_faces(annotations, image=image, scale=scale, face_id=face_id)
                 cv2.imshow('Image', image)
                 if align_window:
