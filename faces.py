@@ -86,6 +86,8 @@ def annotate(annotations, filename=None, image=None, scale=1.0, face_id=None, or
         color = (0, 0, 255)
         if face_id is not None and face_id == i:
             color = (0, 255, 0)
+        if 'color' in annotation:
+            color = annotation['color']
         bbox = (int(annotation['bbox'][0] * scale + 0.5), int(annotation['bbox'][1] * scale + 0.5), int(annotation['bbox'][2] * scale + 0.5), int(annotation['bbox'][3] * scale + 0.5))
         bbox = reorient(w, h, bbox, orientation)
         image = cv2.rectangle(image, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color, 2)
@@ -94,16 +96,16 @@ def annotate(annotations, filename=None, image=None, scale=1.0, face_id=None, or
                 landmark = reorient(w, h, (int(landmark[0] * scale + 0.5), int(landmark[1] * scale + 0.5)), orientation)
                 image = cv2.circle(image, landmark, 1, (0, 0, 255), 2)
 
-        y = bbox[1] - 4
-        if y - 24 < 0:
-            y = bbox[3] + 28
+        y = bbox[1] - 6
+        if y - 16 < 0:
+            y = bbox[3] + 16
 
         tag = ""
         if 'tag' in annotation:
-            tag = annotation['tag']
+            tag = " " + annotation['tag']
 
-        image = cv2.putText(image, str(i) + tag, (bbox[0], y), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 4, cv2.LINE_AA)
-        image = cv2.putText(image, str(i) + tag, (bbox[0], y), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 1, cv2.LINE_AA)
+        image = cv2.putText(image, str(i) + tag, (bbox[0], y), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 0, 0), 4, cv2.LINE_AA)
+        image = cv2.putText(image, str(i) + tag, (bbox[0], y), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 1, cv2.LINE_AA)
     return image
 
 # image needs to be RGB not BGR

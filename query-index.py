@@ -100,6 +100,7 @@ last_vector = None
 face_features = None
 file_filter = None
 file_filter_mode = True # Inverted?
+target_tag = None
 try:
     while in_text != 'q':
         # Handle commands
@@ -260,6 +261,7 @@ try:
             for result, score in results:
                 print(f"{result[0]}\t{result[1]}")
             search_mode = -2
+            target_tag = tag
             last_vector = None
         elif in_text.startswith('l '):
             image_id = int(in_text[2:])
@@ -278,12 +280,14 @@ try:
                 continue
             results = [(image_id, 1.0)] * k
             search_mode = -2
+            target_tag = None
             last_vector = None
         elif in_text.startswith('t ') or in_text.startswith('T '):
             search_mode = 1
             last_vector = None
             parts = in_text[2:].split(" ", 2)
             tag = parts[0]
+            target_tag = tag
             offset = -1
             last_j = 0
 
@@ -306,6 +310,7 @@ try:
         elif in_text.startswith('if '):
             try:
                 search_mode = 1
+                target_tag = None
                 last_vector = None
                 parts = in_text[3:].split(" ", 3)
                 image_id = int(parts[0])
@@ -339,6 +344,7 @@ try:
                 print("Not found.")
                 continue
             search_mode = 0
+            target_tag = None
             last_vector = None
         elif in_text == '':
             offset = last_j
@@ -350,6 +356,7 @@ try:
             texts = clip.tokenize([in_text]).to(device)
             features = normalize(model.encode_text(texts).detach().cpu().numpy().astype('float32'))
             search_mode = 0
+            target_tag = None
             last_vector = None
 
         # Do search
@@ -435,6 +442,19 @@ try:
                 if (re.search(file_filter, tfn) is None) == file_filter_mode:
                     compensate += 1
                     continue
+            annotations = None
+            if show_faces or target_tag is not None:
+                annotations = database.get_faces(database.i2b(result[0]))
+                found_tag = False
+                for a_i, annotation in enumerate(annotations):
+                    annotation['tag'] = config.get_face_tag(annotation['embedding'], face_threshold)
+                    if face_id is not None and a_i == face_id and result[1] > 0.99999:
+                        annotation['color'] = (0, 255, 255)
+                    if target_tag is not None and annotation['tag'] == target_tag:
+                        found_tag = True
+                if target_tag is not None and not found_tag:
+                    compensate += 1
+                    continue
             try:
                 image = cv2.imread(tfn, cv2.IMREAD_COLOR)
                 if image is None or image.shape[0] < 2:
@@ -459,9 +479,6 @@ try:
                     if need_resize:
                         image = cv2.resize(image, (int(w + 0.5), int(h + 0.5)), interpolation=cv2.INTER_LANCZOS4)
                 if show_faces:
-                    annotations = database.get_faces(database.i2b(result[0]))
-                    for annotation in annotations:
-                        annotation['tag'] = config.get_face_tag(annotation['embedding'], face_threshold)
                     pillow_image = Image.open(tfn)
                     exif_data = pillow_image._getexif()
                     exif_orientation = None
