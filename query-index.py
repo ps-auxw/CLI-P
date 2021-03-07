@@ -342,8 +342,31 @@ try:
         if search_mode == 0:
             # Search CLIP features
             search_start = time.perf_counter()
-            D, I = index.search(features, k + offset + 2)
-            results = merge_faiss_results(D, I, database.get_idx)
+            last_results_num = -1
+            I = [[]]
+            extra = 0
+            valid_results = 0
+            while valid_results < k + offset + 2 and len(I[0]) > last_results_num:
+                last_results_num = len(I[0])
+                D, I = index.search(features, k + offset + 2 + extra)
+                results = merge_faiss_results(D, I, database.get_idx)
+                if file_filter is None:
+                    break
+                if extra == 0:
+                    extra = 64
+                else:
+                    extra *= 2
+                if extra > 2**16:
+                    break
+                valid_results = 0
+                for result in results:
+                    tfn = ""
+                    if type(result[0]) is tuple:
+                        tfn = database.get_fix_idx_filename(result[0][0])
+                    else:
+                        tfn = database.get_fix_idx_filename(result[0])
+                    if (re.search(file_filter, tfn) is None) != file_filter_mode:
+                        valid_results += 1
             search_time = time.perf_counter() - search_start
             print(f"Search time: {search_time:.4f}s")
         elif search_mode == 1:
@@ -395,9 +418,9 @@ try:
                 last_vector = vector
                 output = f"{result[1]:.4f} {result[0]} {tfn}"
             if file_filter is not None:
-              if (re.search(file_filter, tfn) is None) == file_filter_mode:
-                compensate += 1
-                continue
+                if (re.search(file_filter, tfn) is None) == file_filter_mode:
+                    compensate += 1
+                    continue
             try:
                 image = cv2.imread(tfn, cv2.IMREAD_COLOR)
                 if image is None or image.shape[0] < 2:
