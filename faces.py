@@ -73,7 +73,7 @@ def reorient(w, h, points, orientation):
         return (w - points[1], points[0])
     elif orientation == 8:
         # 90 degrees
-        return (points[1], points[0])
+        return (points[1], h - points[0])
     return points
 
 def annotate(annotations, filename=None, image=None, scale=1.0, face_id=None, orientation=None, skip_landmarks=False):
