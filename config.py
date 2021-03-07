@@ -48,9 +48,10 @@ def load_tags():
                         fix_idx = database.i2b(b2i(tag_data))
                         face_idx = tag_data[8:10]
                         annotation = database.get_face(fix_idx, face_idx)
-                        tag_map[tag_name].append((fix_idx, face_idx, len(tag_list)))
+                        embedding = annotation['embedding'].reshape((512,)).astype('float32')
+                        tag_map[tag_name].append((fix_idx, face_idx, len(tag_list), embedding))
                         tag_list.append(tag_name)
-                        embeddings.append(annotation['embedding'].reshape((512,)).astype('float32'))
+                        embeddings.append(embedding)
     if len(embeddings) > 0:
         embeddings = np.array(embeddings)
         if not index.is_trained:
@@ -66,14 +67,14 @@ def add_tag(name, fix_idx, face_idx):
             cursor = txn.cursor()
             annotation_key = database.i2b(fix_idx)
             face_key = s2b(face_idx)
-            embedding = database.get_face(annotation_key, face_key)['embedding'].reshape((1 ,512)).astype('float32')
+            embedding = database.get_face(annotation_key, face_key)['embedding'].reshape((1, 512)).astype('float32')
             key = name.encode()
             value = i2b(fix_idx) + face_key
             if not cursor.set_key_dup(key, value):
                 txn.put(key, value)
                 if name not in tag_map:
                     tag_map[name] = []
-                tag_map[name].append((fix_idx, face_idx, len(tag_list)))
+                tag_map[name].append((fix_idx, face_idx, len(tag_list), embedding.reshape((512,))))
                 tag_list.append(name)
                 index.add(embedding)
         with env.begin(db=tag_name_db, write=True) as txn:
@@ -87,6 +88,22 @@ def get_face_tag(embedding, face_threshold):
     if len(I[0]) < 1 or I[0][0] < 0 or D[0][0] < face_threshold:
         return ""
     return tag_list[I[0][0]]
+
+def get_tag_contents(name):
+    if name not in tag_map:
+        return None
+    results = []
+    for fix_idx, face_idx, _, _ in tag_map[name]:
+        results.append([(database.b2i(fix_idx), b2s(face_idx)), 1.0])
+    return results
+
+def get_tag_embeddings(name):
+    if name not in tag_map or len(tag_map[name]) < 1:
+        return None
+    embeddings = []
+    for _, _, _, embedding in tag_map[name]:
+        embeddings.append(embedding)
+    return np.array(embeddings)
 
 def del_tag(name, fix_idx, face_idx):
     with env.begin(db=tags_db, write=True) as txn:

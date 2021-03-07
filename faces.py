@@ -76,7 +76,7 @@ def reorient(w, h, points, orientation):
         return (points[1], points[0])
     return points
 
-def annotate(annotations, filename=None, image=None, scale=1.0, face_id=None, orientation=None):
+def annotate(annotations, filename=None, image=None, scale=1.0, face_id=None, orientation=None, skip_landmarks=False):
     if image is None and filename is not None:
         image = cv2.imread(filename)
     if image is None:
@@ -89,9 +89,10 @@ def annotate(annotations, filename=None, image=None, scale=1.0, face_id=None, or
         bbox = (int(annotation['bbox'][0] * scale + 0.5), int(annotation['bbox'][1] * scale + 0.5), int(annotation['bbox'][2] * scale + 0.5), int(annotation['bbox'][3] * scale + 0.5))
         bbox = reorient(w, h, bbox, orientation)
         image = cv2.rectangle(image, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color, 2)
-        for landmark in annotation['landmarks']:
-            landmark = reorient(w, h, (int(landmark[0] * scale + 0.5), int(landmark[1] * scale + 0.5)), orientation)
-            image = cv2.circle(image, landmark, 1, (0, 0, 255), 2)
+        if not skip_landmarks:
+            for landmark in annotation['landmarks']:
+                landmark = reorient(w, h, (int(landmark[0] * scale + 0.5), int(landmark[1] * scale + 0.5)), orientation)
+                image = cv2.circle(image, landmark, 1, (0, 0, 255), 2)
 
         y = bbox[1] - 4
         if y - 24 < 0:

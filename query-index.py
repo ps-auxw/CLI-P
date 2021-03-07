@@ -81,6 +81,7 @@ in_text = ""
 texts = None
 features = None
 show_faces = config.get_setting_bool("show_faces", False)
+show_prefix = config.get_setting_bool("show_prefix", True)
 face_threshold = config.get_setting_float("face_threshold", 0.3)
 clip_threshold = config.get_setting_float("clip_threshold", 0.19)
 k = config.get_setting_int("k", 50)
@@ -98,11 +99,14 @@ face_features = None
 try:
     while in_text != 'q':
         # Handle commands
-        in_text = input("[h,q,l,i,if,s,r,a,c,ft,ct,p,k] >>> ").strip()
+        prefix = "[h,q,l,i,if,t,t+,t-,t?,s,sp,r,a,c,ft,ct,p,k] "
+        if not show_prefix:
+            prefix = ""
+        in_text = input(prefix + ">>> ").strip()
         if in_text == 'q':
             break
         elif in_text == 'h':
-            print("Enter a search query and you will receive a list of best matching\nimages. The first number is the difference score, the second the\nimage ID followed by the filename.\n\nPress q to stop viewing image and space for the next image.\n\nJust press enter for more results.\n\nCommands:\nq\tQuit\nl ID\tShow the image with the given ID and list faces\ni ID\tFind images similar to ID\nif ID F\tFind images with faces similar to face F in image ID\ns\tToggle display of on-image face annotations\nr [RES]\tSet maximum resolution (e.g. 1280x720)\na\tToggle align window position\nc NUM\tSet default number of results to NUM\nft THRES\tSet face similarity cutoff point in [0, 1]\nct THRES\tSet clip similarity cutoff point in [0, 1] for mixed search\np NUM\tSet number of subsets to probe (1-100, 32 default)\nk\tSkip images with identical CLIP features\nh\tShow this help")
+            print("Enter a search query and you will receive a list of best matching\nimages. The first number is the difference score, the second the\nimage ID followed by the filename.\n\nPress q to stop viewing image and space for the next image.\n\nJust press enter for more results.\n\nCommands:\nq\tQuit\nl ID\tShow the image with the given ID and list faces\ni ID\tFind images similar to ID\nif ID F [S]\tFind images with faces similar to face F in image ID with optional query S\nt TAG [S]\tFind images with faces tagged TAG and optional query S\nt+ TAG ID F\tAdd face F from image ID to tag TAG\nt- TAG ID F\tRemove face F from image ID from tag TAG\nt? TAG\tList which faces from which images belong to TAG\ns\tToggle display of on-image face annotations\nsp\tToggle whether to show prompt prefix\nr [RES]\tSet maximum resolution (e.g. 1280x720)\na\tToggle align window position\nc NUM\tSet default number of results to NUM\nft THRES\tSet face similarity cutoff point in [0, 1]\nct THRES\tSet clip similarity cutoff point in [0, 1] for mixed search\np NUM\tSet number of subsets to probe (1-100, 32 default)\nk\tSkip images with identical CLIP features\nh\tShow this help")
             continue
         elif in_text.startswith('ct '):
             threshold = float(in_text[3:])
@@ -148,6 +152,14 @@ try:
             else:
                 print("Not showing face information.")
             continue
+        elif in_text == 'sp':
+            show_prefix = not show_prefix
+            config.set_setting_bool("show_prefix", show_prefix)
+            if show_prefix:
+                print("Showing prompt prefix.")
+            else:
+                print("Not prompt prefix.")
+            continue
         elif in_text == 'a':
             align_window = not align_window
             config.set_setting_bool("align_window", align_window)
@@ -183,6 +195,20 @@ try:
                 continue
             print(f"Showing {k} results.")
             continue
+        elif in_text.startswith('t? '):
+            tag = in_text[3:]
+            results = config.get_tag_contents(tag)
+            if results is None:
+                print("Not found.")
+                continue
+            offset = -1
+            last_j = 0
+            print(f"Showing tag {tag}:")
+            print(f"Image\tFace")
+            for result, score in results:
+                print(f"{result[0]}\t{result[1]}")
+            search_mode = -2
+            last_vector = None
         elif in_text.startswith('l '):
             image_id = int(in_text[2:])
             offset = -1
@@ -201,6 +227,26 @@ try:
             results = [(image_id, 1.0)] * k
             search_mode = -2
             last_vector = None
+        elif in_text.startswith('t '):
+            search_mode = 1
+            last_vector = None
+            parts = in_text[2:].split(" ", 2)
+            tag = parts[0]
+            offset = -1
+            last_j = 0
+
+            features = config.get_tag_embeddings(tag)
+            if features is None:
+                print("Not found.")
+                search_mode = -1
+                last_vector = None
+                continue
+            if len(parts) > 1:
+                face_features = features
+                search_mode = 2
+                texts = clip.tokenize([parts[1]]).to(device)
+                features = normalize(model.encode_text(texts).detach().cpu().numpy().astype('float32'))
+            print(f"Similar faces to {tag}:")
         elif in_text.startswith('if '):
             try:
                 search_mode = 1
@@ -331,7 +377,10 @@ try:
                         annotation['tag'] = config.get_face_tag(annotation['embedding'], face_threshold)
                     pillow_image = Image.open(tfn)
                     exif_data = pillow_image._getexif()
-                    image = annotate_faces(annotations, image=image, scale=scale, face_id=face_id, orientation=exif_data[orientation])
+                    orientation = None
+                    if exif_data is not None:
+                        orientation = exif_data[orientation]
+                    image = annotate_faces(annotations, image=image, scale=scale, face_id=face_id, orientation=orientation, skip_landmarks=True)
                 cv2.imshow('Image', image)
                 if align_window:
                     cv2.moveWindow('Image', 0, 0)
