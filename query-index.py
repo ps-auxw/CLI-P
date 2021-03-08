@@ -532,8 +532,9 @@ try:
 
         # Do display
         compensate = 0
-        #for j, result in enumerate(results):
-        n_results = len(results)
+        n_results = 0
+        if n_results is not None:
+            n_results = len(results)
         j = 0
         go_dir = 1
         tried_j = -1
