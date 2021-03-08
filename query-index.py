@@ -603,7 +603,5 @@ try:
         cv2.destroyAllWindows()
 except EOFError:
     print("Goodbye.")
-except FileNotFoundError:
+except KeyboardInterrupt:
     print("Interrupted.")
-
-sys.exit(0)
