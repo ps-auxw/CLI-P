@@ -3,7 +3,9 @@ import os.path
 import sys
 import numpy as np
 import lmdb
+import warnings
 import torch
+
 import clip
 import faiss
 from PIL import Image
@@ -29,8 +31,13 @@ file_extensions = ['.jpg', '.jpeg', '.png']
 # Paths containing these will be skipped during index creation
 skip_paths = []
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model, transform = clip.load("ViT-B/32", device=device, jit=False)
+device = "cpu"
+model, transform = None, None
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    if torch.cuda.is_available():
+        device = "cuda"
+    model, transform = clip.load("ViT-B/32", device=device, jit=False)
 model.eval()
 
 if faces:

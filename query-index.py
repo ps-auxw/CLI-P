@@ -5,12 +5,7 @@ import sys
 import re
 import numpy as np
 import lmdb
-import warnings
-
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore")
-    import torch
-
+import torch
 import clip
 import faiss
 from PIL import Image, ExifTags
@@ -608,5 +603,7 @@ try:
         cv2.destroyAllWindows()
 except EOFError:
     print("Goodbye.")
-except KeyboardInterrupt:
+except FileNotFoundError:
     print("Interrupted.")
+
+sys.exit(0)

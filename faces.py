@@ -12,11 +12,12 @@ from retinaface.pre_trained_models import get_model
 from align_faces import warp_and_crop_face
 import align_faces
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
-
 model = None
+device = "cpu"
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
+    if torch.cuda.is_available():
+        device = "cuda"
     if device == 'cpu':
         model = get_model("resnet50_2020-07-20", max_size=720, device=device)
     else:
