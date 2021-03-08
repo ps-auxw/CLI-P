@@ -168,5 +168,3 @@ with database.env.begin(db=database.fn_db) as fn_txn:
 
 print(f"Indexed {i} images and {faces_i} faces.")
 print(f"Done!")
-
-database.env.close()

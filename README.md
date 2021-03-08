@@ -16,6 +16,9 @@ CLI-P uses [LMDB](https://symas.com/lmdb/) as for storing filenames and
 similarity search index, so it should scale reasonably well to even high
 numbers of images.
 
+Face detection is being done with Retinaface, while face embeddings are
+calculated with a pretrained ArcFace model.
+
 Make sure you have virtualenv and swig installed.
 
 To set things up, follow (or run) `setup.sh`. You may want to look at

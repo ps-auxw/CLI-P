@@ -1,3 +1,4 @@
+import atexit
 import lmdb
 import numpy as np
 import hashlib
@@ -45,6 +46,8 @@ def open_db(map_size=1024*1024*1024*20, pack_type='<Q'):
         res = txn.get(b'next')
         if res is None:
             txn.put(b'next', i2b(0))
+
+    atexit.register(lambda: env.close())
 
 def key_len():
     l = 8
@@ -136,8 +139,11 @@ def decode_face(raw_face):
 
 def get_face(idx, face_idx):
     with env.begin(db=fix_idx_db) as txn:
-        raw_face = txn.get(idx + b'f' + face_idx)
-        return decode_face(raw_face)
+        face_key = idx + b'f' + face_idx
+        raw_face = txn.get(face_key)
+        annotation = decode_face(raw_face)
+        annotation['face_key'] = face_key
+        return annotation
 
 def get_faces(idx):
     with env.begin(db=fix_idx_db) as txn:

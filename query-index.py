@@ -89,7 +89,7 @@ texts = None
 features = None
 show_faces = config.get_setting_bool("show_faces", False)
 show_prefix = config.get_setting_bool("show_prefix", True)
-face_threshold = config.get_setting_float("face_threshold", 0.3)
+face_threshold = config.get_setting_float("face_threshold", 0.60)
 clip_threshold = config.get_setting_float("clip_threshold", 0.19)
 k = config.get_setting_int("k", 50)
 offset = 0
@@ -107,11 +107,20 @@ face_features = None
 file_filter = None
 file_filter_mode = True # Inverted?
 target_tag = None
-print("For help, type: h")
+cluster_mode = False
+skip_perfect = config.get_setting_bool('skip_perfect', False)
+print("A similar set of commands to the 't' commands exists with 'c'.\n"
+      "These cluster based tags are completely separate from the regular ones.\n"
+      "They require the clustering script to be run after building an index.\n"
+      "Some commands behave differently, depending on whether 't' or 'c' has\n"
+      "been least recently used.\n"
+      "\n"
+      "For help, type: h"
+     )
 try:
     while in_text != 'q':
         # Handle commands
-        prefix = "[h,q,l,i,if,t,T,t+,t-,t?,ff,s,sp,r,a,c,ft,ct,p,k,gl] "
+        prefix = "[h,q,l,i,if,t,T,t+,t-,t?,ff,s,sp,r,a,n,ft,ct,p,k,gl] "
         if not show_prefix:
             prefix = ""
         in_text = input(prefix + ">>> ").strip()
@@ -132,6 +141,12 @@ try:
                   "While tag searching, press + in the window to add the green\n"
                   "detection to the tag. Press - to remove yellow the yellow frame.\n"
                   "\n"
+                  "A similar set of commands to the 't' commands exists with 'c'.\n"
+                  "These cluster based tags are completely separate from the regular ones.\n"
+                  "They require the clustering script to be run after building an index.\n"
+                  "Some commands behave differently, depending on whether 't' or 'c' has\n"
+                  "been least recently used.\n"
+                  "\n"
                   "Just press enter for more results.\n"
                   "\n"
                   "Commands:\n"
@@ -144,13 +159,16 @@ try:
                   "t+ TAG ID F\tAdd face F from image ID to tag TAG\n"
                   "t- TAG ID F\tRemove face F from image ID from tag TAG\n"
                   "t? TAG\t\tList which faces from which images belong to TAG\n"
+                  "c/C/c+/c-/c?\tLike the t commands, but affecting separate cluster tags instead\n"
+                  "c! TAG ID F\tScrub all entries of the same cluster as face F from image ID from TAG\n"
+                  "fs\t\tToggle skipping full matches with 1.0 score\n"
                   "ff [RE]\t\tSet filename filter regular expression\n"
                   "ff!\t\tToggle filename filter inversion\n"
                   "s\t\tToggle display of on-image face annotations\n"
                   "sp\t\tToggle whether to show prompt prefix\n"
                   "r [RES]\t\tSet maximum resolution (e.g. 1280x720)\n"
                   "a\t\tToggle align window position\n"
-                  "c NUM\t\tSet default number of results to NUM\n"
+                  "n NUM\t\tSet default number of results to NUM\n"
                   "ft THRES\tSet face similarity cutoff point in [0, 1] (default: 0.3)\n"
                   "ct THRES\tSet clip similarity cutoff point in [0, 1] for mixed search (default: 0.19)\n"
                   "p NUM\t\tSet number of subsets to probe (1-100, 32 default)\n"
@@ -203,6 +221,14 @@ try:
                 print(f"Set to probe {probe} subsets.")
             except:
                 print("Invalid probe value.")
+            continue
+        elif in_text == 'fs':
+            skip_perfect = not skip_perfect
+            config.set_setting_bool("skip_perfect", skip_perfect)
+            if skip_perfect:
+                print("Skipping perfect matches.")
+            else:
+                print("Not skipping perfect matches images.")
             continue
         elif in_text == 'k':
             skip_same = not skip_same
@@ -270,7 +296,7 @@ try:
             config.set_setting_bool("max_res_set", False)
             print("Unset maximum resolution.")
             continue
-        elif in_text.startswith('c '):
+        elif in_text.startswith('n '):
             try:
                 k = int(in_text[2:])
                 if k < 1:
@@ -281,34 +307,49 @@ try:
             except:
                 print("Error")
             continue
-        elif in_text.startswith('t+ '):
+        elif in_text.startswith('t+ ') or in_text.startswith('c+ '):
+            cluster_mode = in_text[0] == 'c'
             try:
                 parts = in_text[3:].split(" ")
                 tag = parts[0]
                 image_id = int(parts[1])
                 face_id = int(parts[2])
-                if not config.add_tag(tag, image_id, face_id):
+                if not config.add_tag(tag, image_id, face_id, cluster_mode):
                     raise Exception
                 print(f"Added face {face_id} from image {image_id} to tag {tag}.")
             except:
                 print("Adding to tag failed.")
             continue
-        elif in_text.startswith('t- '):
+        elif in_text.startswith('t- ') or in_text.startswith('c- '):
+            cluster_mode = in_text[0] == 'c'
             try:
                 parts = in_text[3:].split(" ")
                 tag = parts[0]
                 image_id = int(parts[1])
                 face_id = int(parts[2])
-                if not config.del_tag(tag, image_id, face_id):
+                if not config.del_tag(tag, image_id, face_id, cluster_mode):
                     raise Exception
                 print(f"Removed face {face_id} from image {image_id} from tag {tag}.")
             except:
                 print("Removing from tag failed.")
             continue
-        elif in_text.startswith('t? '):
+        elif in_text.startswith('c! '):
+            try:
+                parts = in_text[3:].split(" ")
+                tag = parts[0]
+                image_id = int(parts[1])
+                face_id = int(parts[2])
+                if not config.purge_cluster_tag(tag, image_id, face_id):
+                    raise Exception
+                print(f"Scrubbed the cluster of face {face_id} from image {image_id} from tag {tag}.")
+            except:
+                print("Scrubbing from tag failed.")
+            continue
+        elif in_text.startswith('t? ') or in_text.startswith('c? '):
+            cluster_mode = in_text[0] == 'c'
             try:
                 tag = in_text[3:]
-                results = config.get_tag_contents(tag)
+                results = config.get_tag_contents(tag, cluster_mode)
                 if results is None or tag == "" or len(results) < 1:
                     print("Not found.")
                     continue
@@ -336,7 +377,7 @@ try:
                     print(f"Showing {filename}:")
                     print(f"Image\tFace\tTag\tBounding box")
                     for i, annotation in enumerate(annotations):
-                        tag = config.get_face_tag(annotation['embedding'], face_threshold)
+                        tag = config.get_face_tag(annotation, face_threshold, cluster_mode)
                         print(f"{image_id}\t{i}\t{tag}\t{annotation['bbox']}")
                 except:
                     print("Not found.")
@@ -348,7 +389,8 @@ try:
             except:
                 print("Error")
                 continue
-        elif in_text.startswith('t ') or in_text.startswith('T '):
+        elif in_text.startswith('t ') or in_text.startswith('T ') or in_text.startswith('c ') or in_text.startswith('C '):
+            cluster_mode = in_text[0] == 'c'
             try:
                 search_mode = 1
                 last_vector = None
@@ -358,7 +400,7 @@ try:
                 offset = -1
                 last_j = 0
 
-                features = config.get_tag_embeddings(tag)
+                features = config.get_tag_embeddings(tag, cluster_mode)
                 if in_text.startswith('T '):
                     average = features.mean(0, keepdims=True)
                     average = normalize(average)
@@ -374,7 +416,7 @@ try:
                     texts = clip.tokenize([parts[1]]).to(device)
                     features = normalize(model.encode_text(texts).detach().cpu().numpy().astype('float32'))
                 print(f"Similar faces to {tag}:")
-            except:
+            except KeyboardInterrupt:
                 print("Error")
                 continue
         elif in_text.startswith('if '):
@@ -482,9 +524,13 @@ try:
         compensate = 0
         #for j, result in enumerate(results):
         n_results = len(results)
-        j = offset
+        j = 0
         go_dir = 1
+        tried_j = -1
         while j < n_results:
+            if j - compensate <= offset:
+                j += 1
+                continue
             if j - compensate >= offset + k:
                 break
             j = min(max(j, 0), n_results - 1)
@@ -519,16 +565,20 @@ try:
                 if (re.search(file_filter, tfn) is None) == file_filter_mode:
                     j, compensate = go(j, go_dir, compensate)
                     continue
+            if skip_perfect and result[1] > 0.999999 and tried_j != j:
+                    tried_j = j
+                    j, compensate = go(j, go_dir, compensate)
+                    continue
             tried_j = -1
             annotations = None
             if show_faces or target_tag is not None:
                 annotations = database.get_faces(database.i2b(fix_idx))
                 found_tag = False
                 for a_i, annotation in enumerate(annotations):
-                    annotation['tag'] = config.get_face_tag(annotation['embedding'], face_threshold)
+                    annotation['tag'] = config.get_face_tag(annotation, face_threshold, cluster_mode)
                     if face_id is not None and a_i == face_id and result[1] > 0.99999:
                         annotation['color'] = (0, 255, 255)
-                    if target_tag is not None and annotation['tag'] == target_tag:
+                    if target_tag is not None and (annotation['tag'] == target_tag or (cluster_mode and annotation['tag'] == "")):
                         found_tag = True
                 if target_tag is not None and not found_tag:
                     j, compensate = go(j, go_dir, compensate)
@@ -584,13 +634,13 @@ try:
                         go_dir = 1
                         if target_tag is not None:
                             result[1] = 1.0
-                            config.add_tag(target_tag, fix_idx, face_id)
+                            config.add_tag(target_tag, fix_idx, face_id, cluster_mode)
                         break
                     elif key == ord('-'):
                         go_dir = 1
                         if target_tag is not None:
                             result[1] = face_threshold + 0.00001
-                            config.del_tag(target_tag, fix_idx, face_id)
+                            config.del_tag(target_tag, fix_idx, face_id, cluster_mode)
                         break
                 if do_break:
                     break
