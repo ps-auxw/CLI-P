@@ -5,6 +5,7 @@ import sys
 import re
 import numpy as np
 import lmdb
+import torch_device
 import torch
 import clip
 import faiss

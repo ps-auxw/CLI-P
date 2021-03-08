@@ -4,6 +4,7 @@ import time
 import warnings
 import numpy as np
 import cv2
+from torch_device import device
 import torch
 import torchvision.ops
 import xdg.BaseDirectory
@@ -13,11 +14,8 @@ from align_faces import warp_and_crop_face
 import align_faces
 
 model = None
-device = "cpu"
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
-    if torch.cuda.is_available():
-        device = "cuda"
     if device == 'cpu':
         model = get_model("resnet50_2020-07-20", max_size=720, device=device)
     else:
