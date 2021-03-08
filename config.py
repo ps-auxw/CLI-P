@@ -135,6 +135,33 @@ def purge_cluster_tag(name, fix_idx, face_idx):
         return True
 
 # Tag index functions
+def list_tags(cluster_mode):
+    results = []
+    if cluster_mode:
+        with env.begin(db=cluster_db) as txn:
+            cursor = txn.cursor()
+            res = cursor.set_range(b'm')
+            while res:
+                name, _ = cursor.item()
+                if name[0] != b'm'[0]:
+                    break
+                num = cursor.count()
+                res = cursor.next_nodup()
+                results.append((num, name[1:].decode()))
+        return results
+    with env.begin() as txn:
+        cursor = txn.cursor(tag_name_db)
+        if cursor.first():
+            for name, _ in cursor:
+                tag_name = name.decode()
+                tag_cursor = txn.cursor(tags_db)
+                tag_num = 0
+                if tag_cursor.set_key(name):
+                    tag_num = tag_cursor.count()
+                results.append((tag_num, tag_name))
+    return results
+
+
 def add_tag(name, fix_idx, face_idx, cluster_mode):
     if name == "":
         return False

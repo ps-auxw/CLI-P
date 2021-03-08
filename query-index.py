@@ -159,7 +159,8 @@ try:
                   "t+ TAG ID F\tAdd face F from image ID to tag TAG\n"
                   "t- TAG ID F\tRemove face F from image ID from tag TAG\n"
                   "t? TAG\t\tList which faces from which images belong to TAG\n"
-                  "c/C/c+/c-/c?\tLike the t commands, but affecting separate cluster tags instead\n"
+                  "tl\t\tList tags exist\n"
+                  "c/C/c+/c-/c?/cl\tLike the t commands, but affecting separate cluster tags instead\n"
                   "c! TAG ID F\tScrub all entries of the same cluster as face F from image ID from TAG\n"
                   "fs\t\tToggle skipping full matches with 1.0 score\n"
                   "ff [RE]\t\tSet filename filter regular expression\n"
@@ -306,6 +307,15 @@ try:
                 print(f"Showing {k} results.")
             except:
                 print("Error")
+            continue
+        elif in_text == 'tl' or in_text == 'cl':
+            cluster_mode = in_text[0] == 'c'
+            print("Existing tags:")
+            print("#Faces\tTag")
+            tags = sorted(config.list_tags(cluster_mode), key=lambda x: x[1])
+            for tag in tags:
+                num, name = tag
+                print(f"{num}\t{name}")
             continue
         elif in_text.startswith('t+ ') or in_text.startswith('c+ '):
             cluster_mode = in_text[0] == 'c'
