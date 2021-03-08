@@ -482,12 +482,9 @@ try:
         compensate = 0
         #for j, result in enumerate(results):
         n_results = len(results)
-        j = 0
+        j = offset
         go_dir = 1
         while j < n_results:
-            if j - compensate <= offset:
-                j += 1
-                continue
             if j - compensate >= offset + k:
                 break
             j = min(max(j, 0), n_results - 1)
