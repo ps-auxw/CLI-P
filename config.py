@@ -121,15 +121,17 @@ def purge_cluster_tag(name, fix_idx, face_idx):
     face_key = database.i2b(fix_idx) + b'f' + s2b(face_idx)
     cluster_key = b'm' + name.encode()
     with env.begin(db=cluster_db) as txn:
-        res = txn.get(b'f' + face_key + b'o')
-        if res is None:
+        target = txn.get(b'f' + face_key + b'o')
+        if target is None:
             return False
         cursor = txn.cursor()
         cursor.set_key(cluster_key)
         for iter_key, value in cursor:
             if iter_key != cluster_key:
                 break
-            del_cluster_tag(name, database.b2i(value), b2s(value[-2:]))
+            res = txn.get(b'f' + value + b'o')
+            if res == target:
+                del_cluster_tag(name, database.b2i(value), b2s(value[-2:]))
         return True
 
 # Tag index functions
@@ -195,6 +197,8 @@ def get_tag_contents(name, cluster_mode):
 def get_tag_embeddings(name, cluster_mode):
     if cluster_mode:
         cluster_items = get_tag_contents(name, True)
+        if cluster_items is None:
+            return None
         embeddings = []
         for cluster_item in cluster_items:
             fix_idx = database.i2b(cluster_item[0][0])

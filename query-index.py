@@ -196,7 +196,7 @@ try:
                 clip_threshold = threshold
                 config.set_setting_float("clip_threshold", clip_threshold)
                 print(f"Set CLIP similarity threshold to {clip_threshold}.")
-            finally:
+            except:
                 print("Invalid CLIP threshold value.")
             continue
         elif in_text.startswith('ft '):
@@ -207,7 +207,7 @@ try:
                 face_threshold = threshold
                 config.set_setting_float("face_threshold", face_threshold)
                 print(f"Set face similarity threshold to {face_threshold}.")
-            finally:
+            except:
                 print("Invalid face threshold value.")
             continue
         elif in_text.startswith('p '):
@@ -416,7 +416,7 @@ try:
                     texts = clip.tokenize([parts[1]]).to(device)
                     features = normalize(model.encode_text(texts).detach().cpu().numpy().astype('float32'))
                 print(f"Similar faces to {tag}:")
-            except KeyboardInterrupt:
+            except:
                 print("Error")
                 continue
         elif in_text.startswith('if '):
