@@ -5,7 +5,12 @@ import sys
 import re
 import numpy as np
 import lmdb
-import torch
+import warnings
+
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    import torch
+
 import clip
 import faiss
 from PIL import Image, ExifTags
@@ -106,6 +111,7 @@ face_features = None
 file_filter = None
 file_filter_mode = True # Inverted?
 target_tag = None
+print("For help, type: h")
 try:
     while in_text != 'q':
         # Handle commands
@@ -122,6 +128,10 @@ try:
                   "\n"
                   "Press q to stop viewing image and space for the next image. Go back\n"
                   "by pressing a or backspace.\n"
+                  "\n"
+                  "For a nicer image viewing experience, try something like:\n"
+                  ">>> a\n"
+                  ">>> r 1600x900\n"
                   "\n"
                   "While tag searching, press + in the window to add the green\n"
                   "detection to the tag. Press - to remove yellow the yellow frame.\n"
@@ -597,7 +607,7 @@ try:
             j = j + go_dir
         cv2.destroyAllWindows()
 except EOFError:
-    print("Interrupted.")
+    print("Goodbye.")
 except FileNotFoundError:
     print("Interrupted.")
 

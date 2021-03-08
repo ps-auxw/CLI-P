@@ -44,6 +44,11 @@ shell using:
 Run `python query-index.py` and you will get a prompt where you can
 enter search terms and a few commands. Enter `h` for a short help.
 
+For a nicer image viewing experience, try:
+
+    a
+    r 1600x900
+
 ## Known issues
 
 * Running `query-index.py` while a new index is being generated will
