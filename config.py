@@ -24,7 +24,7 @@ tag_map = {}
 tag_list = []
 
 # Open database
-def open_db(map_size=1024*1024*1024):
+def open_db(map_size=1024*1024*1024*16):
     global env, tags_db, tag_name_db, settings_db, cluster_db
     env = lmdb.open('config.lmdb', map_size=map_size, max_dbs=4)
     tag_name_db = env.open_db(b'tag_name_db')
@@ -74,7 +74,7 @@ def add_cluster_tag(name, fix_idx, face_idx):
             return True
     with env.begin(db=cluster_db, write=True) as txn:
         res = txn.get(b'f' + face_key)
-        if res is None:
+        if res is None or txn.get(b'x' + face_key) is not None:
             txn.put(cluster_key, face_key)
             txn.put(b'f' + face_key, cluster_key)
             return True
@@ -99,7 +99,7 @@ def add_cluster_tag(name, fix_idx, face_idx):
             return True
     return False
 
-def del_cluster_tag(name, fix_idx, face_idx):
+def del_cluster_tag(name, fix_idx, face_idx, prevent_recluster=False):
     face_key = database.i2b(fix_idx) + b'f' + s2b(face_idx)
     cluster_key = b'm' + name.encode()
     with env.begin(db=cluster_db) as txn:
@@ -115,9 +115,11 @@ def del_cluster_tag(name, fix_idx, face_idx):
         txn.put(res, face_key)
         txn.put(b'f' + face_key, res)
         txn.delete(b'f' + face_key + b'o')
+        if prevent_recluster:
+            txn.put(b'x' + face_key)
     return True
 
-def purge_cluster_tag(name, fix_idx, face_idx):
+def purge_cluster_tag(name, fix_idx, face_idx, prevent_recluster):
     face_key = database.i2b(fix_idx) + b'f' + s2b(face_idx)
     cluster_key = b'm' + name.encode()
     with env.begin(db=cluster_db) as txn:
@@ -131,7 +133,7 @@ def purge_cluster_tag(name, fix_idx, face_idx):
                 break
             res = txn.get(b'f' + value + b'o')
             if res == target:
-                del_cluster_tag(name, database.b2i(value), b2s(value[-2:]))
+                del_cluster_tag(name, database.b2i(value), b2s(value[-2:]), prevent_recluster)
         return True
 
 # Tag index functions

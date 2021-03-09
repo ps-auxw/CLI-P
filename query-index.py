@@ -162,6 +162,7 @@ try:
                   "tl\t\tList tags exist\n"
                   "c/C/c+/c-/c?/cl\tLike the t commands, but affecting separate cluster tags instead\n"
                   "c! TAG ID F\tScrub all entries of the same cluster as face F from image ID from TAG\n"
+                  "C! TAG ID F\tLike 'c!', but also permanently declusters all images from the cluster\n"
                   "fs\t\tToggle skipping full matches with 1.0 score\n"
                   "ff [RE]\t\tSet filename filter regular expression\n"
                   "ff!\t\tToggle filename filter inversion\n"
@@ -343,13 +344,14 @@ try:
             except:
                 print("Removing from tag failed.")
             continue
-        elif in_text.startswith('c! '):
+        elif in_text.startswith('c! ') or in_text.startswith('C! '):
             try:
+                prevent_recluster = in_text[0] == 'C'
                 parts = in_text[3:].split(" ")
                 tag = parts[0]
                 image_id = int(parts[1])
                 face_id = int(parts[2])
-                if not config.purge_cluster_tag(tag, image_id, face_id):
+                if not config.purge_cluster_tag(tag, image_id, face_id, prevent_recluster):
                     raise Exception
                 print(f"Scrubbed the cluster of face {face_id} from image {image_id} from tag {tag}.")
             except:

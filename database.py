@@ -40,7 +40,7 @@ def open_db(map_size=1024*1024*1024*20, pack_type='<Q'):
     with env.begin(db=fix_idx_db, write=True) as txn:
         res = txn.get(b'int_type')
         if res is None:
-            txn.put(b'int_type', pack_type.encode())
+            txn.put(b'int_type', pack_type.encode('utf-8', 'surrogateescape'))
         else:
             int_type = res.decode()
         res = txn.get(b'next')
@@ -70,14 +70,14 @@ def get_next_idx():
 
 def get_s(s, db):
     with env.begin(db=db) as txn:
-        return txn.get(sha256(s.encode()))
+        return txn.get(sha256(s.encode('utf-8', 'surrogateescape')))
 
 def check_skip(filename):
     return (get_s(filename, skip_db) is not None)
 
 def put_skip(filename):
     with env.begin(db=skip_db, write=True) as txn:
-        txn.put(sha256(filename.encode()), b'1')
+        txn.put(sha256(filename.encode('utf-8', 'surrogateescape')), b'1')
 
 def check_fn(filename):
     return (get_s(filename, fn_db) is not None)
@@ -86,7 +86,7 @@ def get_fix_idx_vector(idx):
     return np.frombuffer(get_fix_idx(idx, b'v'), np.float32).reshape((1,512))
 
 def get_fix_idx_filename(idx):
-    return get_fix_idx(idx, b'n').decode()
+    return get_fix_idx(idx, b'n').decode('utf-8', 'surrogateescape')
 
 def get_fix_idx(idx, postfix):
     idx = i2b(idx, postfix)
@@ -163,7 +163,7 @@ def put_faces(idx, annotations):
             txn.put(idx + b'f' + s2b(i), encode_face(annotation))
 
 def put_fn(filename, vector):
-    fn = filename.encode()
+    fn = filename.encode('utf-8', 'surrogateescape')
     fn_hash = sha256(fn)
     vector = vector.reshape((1,512)).astype('float32').tobytes()
     idx = None
