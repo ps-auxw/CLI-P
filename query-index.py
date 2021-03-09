@@ -107,16 +107,8 @@ face_features = None
 file_filter = None
 file_filter_mode = True # Inverted?
 target_tag = None
-cluster_mode = False
 skip_perfect = config.get_setting_bool('skip_perfect', False)
-print("A similar set of commands to the 't' commands exists with 'c'.\n"
-      "These cluster based tags are completely separate from the regular ones.\n"
-      "They require the clustering script to be run after building an index.\n"
-      "Some commands behave differently, depending on whether 't' or 'c' has\n"
-      "been least recently used.\n"
-      "\n"
-      "For help, type: h"
-     )
+print("For help, type: h")
 try:
     while in_text != 'q':
         # Handle commands
@@ -141,12 +133,6 @@ try:
                   "While tag searching, press + in the window to add the green\n"
                   "detection to the tag. Press - to remove yellow the yellow frame.\n"
                   "\n"
-                  "A similar set of commands to the 't' commands exists with 'c'.\n"
-                  "These cluster based tags are completely separate from the regular ones.\n"
-                  "They require the clustering script to be run after building an index.\n"
-                  "Some commands behave differently, depending on whether 't' or 'c' has\n"
-                  "been least recently used.\n"
-                  "\n"
                   "Just press enter for more results.\n"
                   "\n"
                   "Commands:\n"
@@ -160,9 +146,6 @@ try:
                   "t- TAG ID F\tRemove face F from image ID from tag TAG\n"
                   "t? TAG\t\tList which faces from which images belong to TAG\n"
                   "tl\t\tList tags exist\n"
-                  "c/C/c+/c-/c?/cl\tLike the t commands, but affecting separate cluster tags instead\n"
-                  "c! TAG ID F\tScrub all entries of the same cluster as face F from image ID from TAG\n"
-                  "C! TAG ID F\tLike 'c!', but also permanently declusters all images from the cluster\n"
                   "fs\t\tToggle skipping full matches with 1.0 score\n"
                   "ff [RE]\t\tSet filename filter regular expression\n"
                   "ff!\t\tToggle filename filter inversion\n"
@@ -309,59 +292,42 @@ try:
             except:
                 print("Error")
             continue
-        elif in_text == 'tl' or in_text == 'cl':
-            cluster_mode = in_text[0] == 'c'
+        elif in_text == 'tl':
             print("Existing tags:")
             print("#Faces\tTag")
-            tags = sorted(config.list_tags(cluster_mode), key=lambda x: x[1])
+            tags = sorted(config.list_tags(), key=lambda x: x[1])
             for tag in tags:
                 num, name = tag
                 print(f"{num}\t{name}")
             continue
-        elif in_text.startswith('t+ ') or in_text.startswith('c+ '):
-            cluster_mode = in_text[0] == 'c'
+        elif in_text.startswith('t+ '):
             try:
                 parts = in_text[3:].split(" ")
                 tag = parts[0]
                 image_id = int(parts[1])
                 face_id = int(parts[2])
-                if not config.add_tag(tag, image_id, face_id, cluster_mode):
+                if not config.add_tag(tag, image_id, face_id):
                     raise Exception
                 print(f"Added face {face_id} from image {image_id} to tag {tag}.")
             except:
                 print("Adding to tag failed.")
             continue
-        elif in_text.startswith('t- ') or in_text.startswith('c- '):
-            cluster_mode = in_text[0] == 'c'
+        elif in_text.startswith('t- '):
             try:
                 parts = in_text[3:].split(" ")
                 tag = parts[0]
                 image_id = int(parts[1])
                 face_id = int(parts[2])
-                if not config.del_tag(tag, image_id, face_id, cluster_mode):
+                if not config.del_tag(tag, image_id, face_id):
                     raise Exception
                 print(f"Removed face {face_id} from image {image_id} from tag {tag}.")
             except:
                 print("Removing from tag failed.")
             continue
-        elif in_text.startswith('c! ') or in_text.startswith('C! '):
-            try:
-                prevent_recluster = in_text[0] == 'C'
-                parts = in_text[3:].split(" ")
-                tag = parts[0]
-                image_id = int(parts[1])
-                face_id = int(parts[2])
-                if not config.purge_cluster_tag(tag, image_id, face_id, prevent_recluster):
-                    raise Exception
-                print(f"Scrubbed the cluster of face {face_id} from image {image_id} from tag {tag}.")
-            except:
-                print("Scrubbing from tag failed.")
-            continue
-        elif in_text.startswith('t? ') or in_text.startswith('c? '):
-            cluster_mode = in_text[0] == 'c'
+        elif in_text.startswith('t? '):
             try:
                 tag = in_text[3:]
-                results = config.get_tag_contents(tag, cluster_mode)
+                results = config.get_tag_contents(tag)
                 if results is None or tag == "" or len(results) < 1:
                     print("Not found.")
                     continue
@@ -389,7 +355,7 @@ try:
                     print(f"Showing {filename}:")
                     print(f"Image\tFace\tTag\tBounding box")
                     for i, annotation in enumerate(annotations):
-                        tag = config.get_face_tag(annotation, face_threshold, cluster_mode)
+                        tag = config.get_face_tag(annotation, face_threshold)
                         print(f"{image_id}\t{i}\t{tag}\t{annotation['bbox']}")
                 except:
                     print("Not found.")
@@ -401,8 +367,7 @@ try:
             except:
                 print("Error")
                 continue
-        elif in_text.startswith('t ') or in_text.startswith('T ') or in_text.startswith('c ') or in_text.startswith('C '):
-            cluster_mode = in_text[0] == 'c'
+        elif in_text.startswith('t ') or in_text.startswith('T '):
             try:
                 search_mode = 1
                 last_vector = None
@@ -412,7 +377,7 @@ try:
                 offset = -1
                 last_j = 0
 
-                features = config.get_tag_embeddings(tag, cluster_mode)
+                features = config.get_tag_embeddings(tag)
                 if in_text.startswith('T '):
                     average = features.mean(0, keepdims=True)
                     average = normalize(average)
@@ -588,10 +553,10 @@ try:
                 annotations = database.get_faces(database.i2b(fix_idx))
                 found_tag = False
                 for a_i, annotation in enumerate(annotations):
-                    annotation['tag'] = config.get_face_tag(annotation, face_threshold, cluster_mode)
+                    annotation['tag'] = config.get_face_tag(annotation, face_threshold)
                     if face_id is not None and a_i == face_id and result[1] > 0.99999:
                         annotation['color'] = (0, 255, 255)
-                    if target_tag is not None and (annotation['tag'] == target_tag or (cluster_mode and annotation['tag'] == "")):
+                    if target_tag is not None and (annotation['tag'] == target_tag:
                         found_tag = True
                 if target_tag is not None and not found_tag:
                     j, compensate = go(j, go_dir, compensate)
@@ -647,13 +612,13 @@ try:
                         go_dir = 1
                         if target_tag is not None:
                             result[1] = 1.0
-                            config.add_tag(target_tag, fix_idx, face_id, cluster_mode)
+                            config.add_tag(target_tag, fix_idx, face_id)
                         break
                     elif key == ord('-'):
                         go_dir = 1
                         if target_tag is not None:
                             result[1] = face_threshold + 0.00001
-                            config.del_tag(target_tag, fix_idx, face_id, cluster_mode)
+                            config.del_tag(target_tag, fix_idx, face_id)
                         break
                 if do_break:
                     break
