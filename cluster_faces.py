@@ -7,16 +7,16 @@ import copy
 import scipy.cluster.hierarchy as hcluster
 from sklearn.cluster import DBSCAN
 
-threshold = 0.33
+use_dbscan = True
+
+threshold_cosine = 0.33
+threshold_euclidean = np.sqrt(2 * threshold_cosine)
 
 def normalize(v):
     norm = np.linalg.norm(v)
     if norm < 0.000000001: 
        return v
     return v / norm
-
-def cosine_distance(a, b):
-    return 1. - (a @ b.T)
 
 database.open_db()
 config.open_db()
@@ -44,12 +44,16 @@ with database.env.begin(db=database.fix_idx_db) as txn:
         #if idx > 200:
         #    break
     print(f"Filled matrix")
-    #clusters = hcluster.fclusterdata(arr[0:idx], threshold, criterion='distance', metric='cosine', method='single')
-    clusters = DBSCAN(eps=threshold, min_samples=1, metric=cosine_distance, algorithm='ball_tree', n_jobs=-1).fit(arr[0:idx]).labels_
+    if use_dbscan:
+        clusters = DBSCAN(eps=threshold_euclidean, min_samples=1, n_jobs=8, algorithm='ball_tree').fit(arr[0:idx]).labels_
+    else:
+        clusters = hcluster.fclusterdata(arr[0:idx], threshold_cosine, criterion='distance', metric='cosine', method='single')
     print("Calculated clusters")
     cluster_map = {}
     for i in range(idx):
         c = clusters[i]
+        if c < 0:
+            continue
         if c not in cluster_map:
             cluster_map[c] = []
         cluster_map[c].append(i)
@@ -61,6 +65,7 @@ with database.env.begin(db=database.fix_idx_db) as txn:
     #        face = index_map[idx]
     #        print(face[0:2], end=", ")
     #    print()
+    #sys.exit()
 
     with config.env.begin(db=config.cluster_db, write=True) as c_txn:
         cluster_id = c_txn.get(b'next')
