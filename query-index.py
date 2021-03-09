@@ -556,7 +556,7 @@ try:
                     annotation['tag'] = config.get_face_tag(annotation, face_threshold)
                     if face_id is not None and a_i == face_id and result[1] > 0.99999:
                         annotation['color'] = (0, 255, 255)
-                    if target_tag is not None and (annotation['tag'] == target_tag:
+                    if target_tag is not None and annotation['tag'] == target_tag:
                         found_tag = True
                 if target_tag is not None and not found_tag:
                     j, compensate = go(j, go_dir, compensate)
