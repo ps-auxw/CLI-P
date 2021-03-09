@@ -15,6 +15,9 @@ def normalize(v):
        return v
     return v / norm
 
+def cosine_distance(a, b):
+    return 1. - (a @ b.T)
+
 database.open_db()
 config.open_db()
 
@@ -42,7 +45,7 @@ with database.env.begin(db=database.fix_idx_db) as txn:
         #    break
     print(f"Filled matrix")
     #clusters = hcluster.fclusterdata(arr[0:idx], threshold, criterion='distance', metric='cosine', method='single')
-    clusters = DBSCAN(eps=threshold, min_samples=1, metric='cosine').fit(arr[0:idx]).labels_
+    clusters = DBSCAN(eps=threshold, min_samples=1, metric=cosine_distance, algorithm='ball_tree', n_jobs=-1).fit(arr[0:idx]).labels_
     print("Calculated clusters")
     cluster_map = {}
     for i in range(idx):
