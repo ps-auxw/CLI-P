@@ -36,7 +36,7 @@ def open_db(map_size=1024*1024*1024):
     atexit.register(lambda: env.close())
 
 def load_tags():
-    global index, tag_map, tag_list, image_map
+    global index, tag_map, tag_list, image_map, cluster_map
     index = faiss.IndexFlatIP(512)
     cluster_map = {}
     tag_map = {}
@@ -86,7 +86,7 @@ def list_tags():
     return results
 
 def add_tag(name, fix_idx, face_idx):
-    global image_map
+    global image_map, cluster_map
     if name == "":
         return False
     try:
