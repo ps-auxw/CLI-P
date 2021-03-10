@@ -518,7 +518,7 @@ class Search:
         n_results = 0
         if n_results is not None:
             n_results = len(self.results)
-        j = last_j + 1
+        j = self.last_j + 1
         go_dir = 1
         tried_j = -1
         while j < n_results:
@@ -533,7 +533,7 @@ class Search:
             fix_idx = None
             face_id = None
             output = ""
-            last_j = j
+            self.last_j = j
             if type(result[0]) is tuple:
                 face_id = result[0][1]
                 fix_idx = result[0][0]
