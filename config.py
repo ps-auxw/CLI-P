@@ -20,7 +20,10 @@ settings_db = None
 # Tag index and mapping
 index = None
 tag_map = {}
+image_map = {}
 tag_list = []
+
+cluster_map = {}
 
 # Open database
 def open_db(map_size=1024*1024*1024):
@@ -33,9 +36,11 @@ def open_db(map_size=1024*1024*1024):
     atexit.register(lambda: env.close())
 
 def load_tags():
-    global index, tag_map, tag_list
+    global index, tag_map, tag_list, image_map, cluster_map
     index = faiss.IndexFlatIP(512)
+    cluster_map = {}
     tag_map = {}
+    image_map = {}
     tag_list = []
     embeddings = []
     with env.begin() as txn:
@@ -54,6 +59,9 @@ def load_tags():
                         annotation = database.get_face(fix_idx, face_idx)
                         embedding = annotation['embedding'].reshape((512,)).astype('float32')
                         tag_map[tag_name].append((fix_idx, face_idx, len(tag_list), embedding))
+                        if not fix_idx in image_map:
+                            image_map[fix_idx] = {}
+                        image_map[fix_idx][tag_name] = True
                         tag_list.append(tag_name)
                         embeddings.append(embedding)
     if len(embeddings) > 0:
@@ -77,8 +85,8 @@ def list_tags():
                 results.append((tag_num, tag_name))
     return results
 
-
 def add_tag(name, fix_idx, face_idx):
+    global image_map, cluster_map
     if name == "":
         return False
     try:
@@ -94,6 +102,13 @@ def add_tag(name, fix_idx, face_idx):
                 if name not in tag_map:
                     tag_map[name] = []
                 tag_map[name].append((database.i2b(fix_idx), face_key, len(tag_list), embedding.reshape((512,))))
+                if not fix_idx in image_map:
+                    image_map[fix_idx] = {}
+                if annotation_key not in image_map:
+                    image_map[annotation_key] = {}
+                image_map[annotation_key][name] = True
+                if name in cluster_map:
+                    del cluster_map[name]
                 tag_list.append(name)
                 index.add(embedding)
         with env.begin(db=tag_name_db, write=True) as txn:
@@ -101,6 +116,10 @@ def add_tag(name, fix_idx, face_idx):
         return True
     except:
         return False
+
+def has_tag(name, fix_idx):
+    fix_idx = database.i2b(fix_idx)
+    return fix_idx in image_map and name in image_map[fix_idx]
 
 def get_face_tag(annotation, face_threshold):
     embedding = annotation['embedding']
@@ -123,6 +142,19 @@ def get_tag_embeddings(name):
     embeddings = []
     for _, _, _, embedding in tag_map[name]:
         embeddings.append(embedding)
+    embeddings = np.array(embeddings)
+    n_emb = embeddings.shape[0]
+    if False and n_emb > 78*3: # FIXME: Disabled due to bugs
+        kmeans = faiss.Kmeans(512, min(n_emb // 39, 150), niter=10, verbose=False)
+        if name in cluster_map:
+            kmeans = cluster_map[name]
+        else:
+            kmeans.train(embeddings)
+            cluster_map[name] = kmeans
+        if kmeans.centroids.shape[0] > 5:
+            return kmeans.centroids
+        else:
+            return np.append(embeddings[1::3], kmeans.centroids, axis=0)
     return np.array(embeddings)
 
 def del_tag(name, fix_idx, face_idx):

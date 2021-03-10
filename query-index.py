@@ -95,7 +95,7 @@ class Search:
         self.clip_threshold = config.get_setting_float("clip_threshold", 0.19)
         self.k = config.get_setting_int("k", 50)
         self.offset = 0
-        self.last_j = 0
+        self.last_j = -1
         self.search_mode = -1
         self.max_res = None
         if config.get_setting_bool("max_res_set", False):
@@ -348,7 +348,7 @@ class Search:
                     print("Not found.")
                     return True
                 self.offset = -1
-                self.last_j = 0
+                self.last_j = -1
                 print(f"Showing tag {tag}:")
                 print(f"Image\tFace")
                 for result, score in self.results:
@@ -363,7 +363,7 @@ class Search:
             try:
                 image_id = int(self.in_text[2:])
                 self.offset = -1
-                self.last_j = 0
+                self.last_j = -1
                 try:
                     filename = database.get_fix_idx_filename(image_id)
                     features = database.get_fix_idx_vector(image_id)
@@ -391,7 +391,7 @@ class Search:
                 tag = parts[0]
                 self.target_tag = tag
                 self.offset = -1
-                self.last_j = 0
+                self.last_j = -1
 
                 self.features = config.get_tag_embeddings(tag)
                 if self.in_text.startswith('T '):
@@ -421,7 +421,7 @@ class Search:
                 image_id = int(parts[0])
                 face_id = int(parts[1])
                 self.offset = -1
-                self.last_j = 0
+                self.last_j = -1
 
                 filename = database.get_fix_idx_filename(image_id)
                 annotations = database.get_faces(database.i2b(image_id))
@@ -441,7 +441,7 @@ class Search:
             try:
                 image_id = int(self.in_text[2:])
                 self.offset = -1
-                self.last_j = 0
+                self.last_j = -1
                 filename = database.get_fix_idx_filename(image_id)
                 self.features = database.get_fix_idx_vector(image_id)
                 print(f"Similar to {filename}:")
@@ -457,7 +457,7 @@ class Search:
                 return True
         else:
             self.offset = -1
-            self.last_j = 0
+            self.last_j = -1
             self.texts = clip.tokenize([self.in_text]).to(self.device)
             self.features = normalize(self.model.encode_text(self.texts).detach().cpu().numpy().astype('float32'))
             self.search_mode = 0
@@ -518,13 +518,12 @@ class Search:
         n_results = 0
         if n_results is not None:
             n_results = len(self.results)
-        j = 0
+        j = last_j + 1
         go_dir = 1
         tried_j = -1
         while j < n_results:
-            if j - compensate <= self.offset:
-                j += 1
-                continue
+            if j < 0:
+                j = 0
             if j - compensate >= self.offset + self.k:
                 break
             j = min(max(j, 0), n_results - 1)
@@ -559,7 +558,7 @@ class Search:
                 if (re.search(self.file_filter, tfn) is None) == self.file_filter_mode:
                     j, compensate = go(j, go_dir, compensate)
                     continue
-            if self.skip_perfect and result[1] > 0.999999 and tried_j != j:
+            if self.skip_perfect and (result[1] > 0.999999 or config.has_tag(self.target_tag, fix_idx)) and tried_j != j:
                     tried_j = j
                     j, compensate = go(j, go_dir, compensate)
                     continue
