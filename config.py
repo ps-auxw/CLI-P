@@ -144,17 +144,17 @@ def get_tag_embeddings(name):
         embeddings.append(embedding)
     embeddings = np.array(embeddings)
     n_emb = embeddings.shape[0]
-    if n_emb > 78*3:
+    if False and n_emb > 78*3: # FIXME: Disabled due to bugs
         kmeans = faiss.Kmeans(512, min(n_emb // 39, 150), niter=10, verbose=False)
         if name in cluster_map:
             kmeans = cluster_map[name]
         else:
             kmeans.train(embeddings)
             cluster_map[name] = kmeans
-        if kmeans.centroids.shape[0] > 50:
+        if kmeans.centroids.shape[0] > 5:
             return kmeans.centroids
         else:
-            return np.append(embeddings[1::2], kmeans.centroids, axis=0)
+            return np.append(embeddings[1::3], kmeans.centroids, axis=0)
     return np.array(embeddings)
 
 def del_tag(name, fix_idx, face_idx):
