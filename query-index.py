@@ -93,7 +93,7 @@ face_threshold = config.get_setting_float("face_threshold", 0.60)
 clip_threshold = config.get_setting_float("clip_threshold", 0.19)
 k = config.get_setting_int("k", 50)
 offset = 0
-last_j = 0
+last_j = -1
 search_mode = -1
 max_res = None
 if config.get_setting_bool("max_res_set", False):
@@ -332,7 +332,7 @@ try:
                     print("Not found.")
                     continue
                 offset = -1
-                last_j = 0
+                last_j = -1
                 print(f"Showing tag {tag}:")
                 print(f"Image\tFace")
                 for result, score in results:
@@ -347,7 +347,7 @@ try:
             try:
                 image_id = int(in_text[2:])
                 offset = -1
-                last_j = 0
+                last_j = -1
                 try:
                     filename = database.get_fix_idx_filename(image_id)
                     features = database.get_fix_idx_vector(image_id)
@@ -375,7 +375,7 @@ try:
                 tag = parts[0]
                 target_tag = tag
                 offset = -1
-                last_j = 0
+                last_j = -1
 
                 features = config.get_tag_embeddings(tag)
                 if in_text.startswith('T '):
@@ -405,7 +405,7 @@ try:
                 image_id = int(parts[0])
                 face_id = int(parts[1])
                 offset = -1
-                last_j = 0
+                last_j = -1
 
                 filename = database.get_fix_idx_filename(image_id)
                 annotations = database.get_faces(database.i2b(image_id))
@@ -425,7 +425,7 @@ try:
             try:
                 image_id = int(in_text[2:])
                 offset = -1
-                last_j = 0
+                last_j = -1
                 filename = database.get_fix_idx_filename(image_id)
                 features = database.get_fix_idx_vector(image_id)
                 print(f"Similar to {filename}:")
@@ -441,7 +441,7 @@ try:
                 continue
         else:
             offset = -1
-            last_j = 0
+            last_j = -1
             texts = clip.tokenize([in_text]).to(device)
             features = normalize(model.encode_text(texts).detach().cpu().numpy().astype('float32'))
             search_mode = 0
@@ -502,13 +502,12 @@ try:
         n_results = 0
         if n_results is not None:
             n_results = len(results)
-        j = 0
+        j = last_j + 1
         go_dir = 1
         tried_j = -1
         while j < n_results:
-            if j - compensate <= offset:
-                j += 1
-                continue
+            if j < 0:
+                j = 0
             if j - compensate >= offset + k:
                 break
             j = min(max(j, 0), n_results - 1)
@@ -543,7 +542,7 @@ try:
                 if (re.search(file_filter, tfn) is None) == file_filter_mode:
                     j, compensate = go(j, go_dir, compensate)
                     continue
-            if skip_perfect and result[1] > 0.999999 and tried_j != j:
+            if skip_perfect and (result[1] > 0.999999 or config.has_tag(target_tag, fix_idx)) and tried_j != j:
                     tried_j = j
                     j, compensate = go(j, go_dir, compensate)
                     continue
