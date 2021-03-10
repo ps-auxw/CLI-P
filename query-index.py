@@ -16,12 +16,6 @@ import config
 import database
 from faces import annotate as annotate_faces
 
-# Might not exist, but let's try
-try:
-    import readline
-except:
-    pass
-
 def go(j, go_dir, compensate):
     if go_dir == 0:
         return j + 1, compensate + 1
@@ -652,5 +646,12 @@ class Search:
 
 
 if __name__ == '__main__':
+
+    # Might not exist, but let's try
+    try:
+        import readline
+    except:
+        pass
+
     search = Search()
     search.run_cli()
