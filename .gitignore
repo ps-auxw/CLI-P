@@ -1,0 +1,12 @@
+# Per-instance database files
+# Anchored at top-level:
+/*.lmdb/
+/*.index
+
+# Python virtual environment
+# Anchored at top-level:
+/env/
+
+# Build results
+# Anywhere:
+__pycache__/
