@@ -4,7 +4,6 @@
 
 import sys
 from PyQt5.QtCore import (
-    pyqtSlot,
     QTimer,
 )
 from PyQt5.QtWidgets import (
@@ -37,7 +36,6 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(widget)
 
-    #@pyqtSlot()
     def loadModules(self):
         global query_index
         if query_index == None:
@@ -52,12 +50,10 @@ class MainWindow(QMainWindow):
 
     def showEvent(self, ev):
         super(MainWindow, self).showEvent(ev)
-        if ev.spontaneous():
-            print("Spontaneous show event.")
-            self.loadModules()
-        else:
-            print("Non-spontaneous show event. Delaying via QTimer::singleShot(0, ...)...")
-            QTimer.singleShot(0, self.loadModules)
+        QTimer.singleShot(0, self.delayLoadModules)  # (Run after all events.)
+
+    def delayLoadModules(self):
+        QTimer.singleShot(50, self.loadModules)  # (Delay a bit further in the hopes it might actually work.)
 
 
 if __name__ == '__main__':
