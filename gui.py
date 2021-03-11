@@ -63,9 +63,16 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(50, self.loadModules)  # (Delay a bit further in the hopes it might actually work.)
 
     def appendSearchOutput(self, lines):
+        # Skip calls with nothing to convey.
         if lines == None or lines == "":
             return
-        self.searchOutput.append(lines.rstrip('\n'))
+        # Strip last newline, but only that.
+        # That way, an empty line at the end
+        # can be requested by "...\n\n".
+        # Otherwise, we could simply use: lines.rstrip('\n')
+        if lines[-1] == '\n':
+            lines = lines[:-1]
+        self.searchOutput.append(lines)
 
     def handleSearchInput(self):
         inputText = self.searchInput.text()
