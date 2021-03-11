@@ -3,13 +3,16 @@
 #
 
 import sys
+from io import StringIO
+import contextlib
+
 from PyQt5.QtCore import (
     QTimer,
 )
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget,
     QVBoxLayout,
-    QLabel, QLineEdit,
+    QLabel, QLineEdit, QTextEdit,
 )
 
 # Load delayed, so the GUI is already visible,
@@ -29,9 +32,13 @@ class MainWindow(QMainWindow):
         vBox = QVBoxLayout(widget)
 
         self.cvLabel = QLabel()
+        self.searchOutput = QTextEdit()
+        self.searchOutput.setReadOnly(True)
         self.searchInput = QLineEdit()
+        self.searchInput.returnPressed.connect(self.handleSearchInput)
 
         vBox.addWidget(self.cvLabel)
+        vBox.addWidget(self.searchOutput)
         vBox.addWidget(self.searchInput)
 
         self.setCentralWidget(widget)
@@ -54,6 +61,41 @@ class MainWindow(QMainWindow):
 
     def delayLoadModules(self):
         QTimer.singleShot(50, self.loadModules)  # (Delay a bit further in the hopes it might actually work.)
+
+    def appendSearchOutput(self, lines):
+        if lines == None or lines == "":
+            return
+        self.searchOutput.append(lines.rstrip('\n'))
+
+    def handleSearchInput(self):
+        inputText = self.searchInput.text()
+
+        search = self.search
+        if search == None:
+            self.appendSearchOutput("Search not ready, yet...")
+            return
+        search.in_text = inputText.strip()
+
+        f = StringIO()
+        iteration_done = None
+        with contextlib.redirect_stdout(f):
+            iteration_done = search.do_command()
+        self.appendSearchOutput(f.getvalue())
+        del f
+        if iteration_done:
+            return
+
+        f = StringIO()
+        with contextlib.redirect_stdout(f):
+            search.do_search()
+        self.appendSearchOutput(f.getvalue())
+        del f
+
+        f = StringIO()
+        with contextlib.redirect_stdout(f):
+            search.do_display()
+        self.appendSearchOutput(f.getvalue())
+        del f
 
 
 if __name__ == '__main__':
