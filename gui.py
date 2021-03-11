@@ -74,6 +74,14 @@ class MainWindow(QMainWindow):
             lines = lines[:-1]
         self.searchOutput.append(lines)
 
+    def stdoutSearchOutput(self, code):
+        ret = None
+        with contextlib.closing(StringIO()) as f:
+            with contextlib.redirect_stdout(f):
+                ret = code()
+            self.appendSearchOutput(f.getvalue())
+        return ret
+
     def handleSearchInput(self):
         inputText = self.searchInput.text()
 
@@ -83,26 +91,12 @@ class MainWindow(QMainWindow):
             return
         search.in_text = inputText.strip()
 
-        f = StringIO()
-        iteration_done = None
-        with contextlib.redirect_stdout(f):
-            iteration_done = search.do_command()
-        self.appendSearchOutput(f.getvalue())
-        del f
+        iteration_done = self.stdoutSearchOutput(search.do_command)
         if iteration_done:
             return
 
-        f = StringIO()
-        with contextlib.redirect_stdout(f):
-            search.do_search()
-        self.appendSearchOutput(f.getvalue())
-        del f
-
-        f = StringIO()
-        with contextlib.redirect_stdout(f):
-            search.do_display()
-        self.appendSearchOutput(f.getvalue())
-        del f
+        self.stdoutSearchOutput(search.do_search)
+        self.stdoutSearchOutput(search.do_display)
 
 
 if __name__ == '__main__':
