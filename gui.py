@@ -10,6 +10,7 @@ from PyQt5.QtCore import (
     QTimer,
 )
 from PyQt5.QtWidgets import (
+    qApp,
     QApplication, QMainWindow, QWidget,
     QVBoxLayout,
     QLabel, QLineEdit, QTextEdit,
@@ -46,14 +47,17 @@ class MainWindow(QMainWindow):
     def loadModules(self):
         global query_index
         if query_index == None:
-            # TODO: Convey this information via the GUI.
-            print("Loading query-index...")
+            self.appendSearchOutput("Loading query-index...")
+            qApp.processEvents()
             query_index = __import__('query-index')  # TODO: Adjust file name.
-            print("Loaded query-index.")
+            self.appendSearchOutput("Loaded query-index.")
+            qApp.processEvents()
         if self.search == None:
-            print("Instantiating search...")
+            self.appendSearchOutput("Instantiating search...")
+            qApp.processEvents()
             self.search = query_index.Search()
-            print("Instantiated search.")
+            self.appendSearchOutput("Instantiated search.")
+            qApp.processEvents()
 
     def showEvent(self, ev):
         super(MainWindow, self).showEvent(ev)
