@@ -93,7 +93,9 @@ class MainWindow(QMainWindow):
         if search == None:
             self.appendSearchOutput("Search not ready, yet...")
             return
+        self.appendSearchOutput(">>> " + inputText)
         search.in_text = inputText.strip()
+        self.searchInput.clear()
 
         iteration_done = self.stdoutSearchOutput(search.do_command)
         if iteration_done:
