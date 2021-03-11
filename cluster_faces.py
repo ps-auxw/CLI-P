@@ -179,7 +179,7 @@ with database.env.begin(db=database.fix_idx_db) as txn:
         cluster_map[c].append(i)
 
     print("Filtering big clusters with low mean similarities (sampled)...")
-    embeddings = np.array((768, 512))
+    embeddings = np.zeros((768, 512))
     del_list = []
     for i, cluster in enumerate(cluster_map.keys()):
         c_id = cluster
@@ -192,11 +192,12 @@ with database.env.begin(db=database.fix_idx_db) as txn:
             pick = np.random.choice(pick, 768)
             c_len = 768
         for i, p in enumerate(pick):
-            face = index_map[cluster[pick]]
+            face = index_map[cluster[p]]
             embeddings[i, :] = database.get_face(database.i2b(face[0]), s2b(face[1]))['embedding'].reshape((512,))
         c_embeddings = embeddings[0:c_len]
-        c_similarity = c_embeddings @ c_embeddings.T
-        if c_similarity[c_similarity < 0.999].mean() < threshold_avg_intra:
+        c_similarity = (c_embeddings @ c_embeddings.T).reshape((-1,))
+        c_similarity = c_similarity[c_similarity < 0.999]
+        if c_similarity.shape[0] > 0 and c_similarity.mean() < threshold_avg_intra:
             del_list.append(c_id)
     for del_cluster in del_list:
         del cluster_map[del_cluster]
