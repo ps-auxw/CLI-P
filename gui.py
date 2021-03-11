@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import (
     qApp,
     QApplication, QMainWindow, QWidget,
     QVBoxLayout,
-    QLabel, QLineEdit, QTextEdit,
+    QComboBox, QLabel, QTextEdit,
 )
 
 # Load delayed, so the GUI is already visible,
@@ -35,8 +35,9 @@ class MainWindow(QMainWindow):
         self.cvLabel = QLabel()
         self.searchOutput = QTextEdit()
         self.searchOutput.setReadOnly(True)
-        self.searchInput = QLineEdit()
-        self.searchInput.returnPressed.connect(self.handleSearchInput)
+        self.searchInput = QComboBox()
+        self.searchInput.setEditable(True)
+        self.searchInput.activated.connect(self.handleSearchInput)
 
         vBox.addWidget(self.cvLabel)
         vBox.addWidget(self.searchOutput)
@@ -87,7 +88,7 @@ class MainWindow(QMainWindow):
         return ret
 
     def handleSearchInput(self):
-        inputText = self.searchInput.text()
+        inputText = self.searchInput.currentText()
 
         search = self.search
         if search == None:
@@ -95,7 +96,7 @@ class MainWindow(QMainWindow):
             return
         self.appendSearchOutput(">>> " + inputText)
         search.in_text = inputText.strip()
-        self.searchInput.clear()
+        self.searchInput.clearEditText()
 
         iteration_done = self.stdoutSearchOutput(search.do_command)
         if iteration_done:
