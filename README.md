@@ -60,3 +60,7 @@ For a nicer image viewing experience, try:
 * Running multiple instances of `build-index.py` in parallel may mess
     things up, but running a single instance of it afterwards should
     fix them back up.
+
+## Credits
+
+By ps-auxw. OO/GUI work by canvon.
