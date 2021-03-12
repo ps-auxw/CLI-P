@@ -5,6 +5,7 @@ import struct
 import faiss
 
 from numpack import *
+from db_config import config_map_size
 import database
 
 # LMDB environment
@@ -27,9 +28,9 @@ tag_list = []
 cluster_map = {}
 
 # Open database
-def open_db(map_size=1024*1024*1024):
+def open_db():
     global env, tags_db, tag_name_db, settings_db, cluster_db
-    env = lmdb.open('config.lmdb', map_size=map_size, max_dbs=4)
+    env = lmdb.open('config.lmdb', map_size=config_map_size, max_dbs=4)
     tag_name_db = env.open_db(b'tag_name_db')
     tags_db = env.open_db(b'tags_db', dupsort=True)
     settings_db = env.open_db(b'settings_db')
@@ -143,6 +144,35 @@ def purge_cluster_tag(name, fix_idx, face_idx, prevent_recluster):
             if res == target:
                 del_cluster_tag(name, database.b2i(value), b2s(value[-2:]), prevent_recluster)
         return True
+
+def list_unnamed_clusters():
+    clusters = []
+    with env.begin(db=cluster_db) as txn:
+        cursor = txn.cursor()
+        if  cursor.set_range(b'c'):
+            while True:
+                item = cursor.item()
+                if item is None or item[0][0] != b'c'[0]:
+                    break
+                c_count = cursor.count()
+                if c_count > 1:
+                    clusters.append((database.b2i(item[0][1:]), c_count))
+                if not cursor.next_nodup():
+                    break
+    return sorted(clusters, key=lambda x: x[0])
+
+def get_unnamed_cluster_contents(cluster_id):
+    with env.begin(db=cluster_db) as txn:
+        cursor = txn.cursor()
+        cluster_key = b'c' + database.i2b(cluster_id)
+        if not cursor.set_key(cluster_key):
+            return None
+        results = []
+        for iter_key, value in cursor:
+            if iter_key != cluster_key:
+                break
+            results.append([(database.b2i(value), b2s(value[-2:])), 1.0])
+        return results
 
 # Tag index functions
 def list_tags(cluster_mode):

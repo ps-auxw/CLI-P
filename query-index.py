@@ -179,6 +179,7 @@ class Search:
                   "c/C/c+/c-/c?/cl\tLike the t commands, but affecting separate cluster tags instead\n"
                   "c! TAG ID F\tScrub all entries of the same cluster as face F from image ID from TAG\n"
                   "C! TAG ID F\tLike 'c!', but also permanently declusters all images from the cluster\n"
+                  "cul [CID]\tList unnamed clusters with image number, or list images in unnamed cluster CID\n"
                   "fs\t\tToggle skipping full matches with 1.0 score\n"
                   "ff [RE]\t\tSet filename filter regular expression\n"
                   "ff!\t\tToggle filename filter inversion\n"
@@ -334,6 +335,31 @@ class Search:
                 num, name = tag
                 print(f"{num}\t{name}")
             return True
+        elif self.in_text == 'cul':
+            self.cluster_mode = True
+            print("Existing unnamed clusters:")
+            print("ID\t#Faces")
+            clusters = config.list_unnamed_clusters()
+            for cluster in clusters:
+                cluster_id, num = cluster
+                print(f"{cluster_id}\t{num}")
+            return True
+        elif self.in_text.startswith('cul '):
+            self.cluster_mode = True
+            try:
+                cluster_id = int(self.in_text[4:])
+                self.results = config.get_unnamed_cluster_contents(cluster_id)
+                if self.results is None or len(self.results) < 1:
+                    print("Not found.")
+                    return True
+                self.offset = -1
+                self.last_j = -1
+                print(f"Showing unnamed cluster {cluster_id}:")
+                self.search_mode = -2
+                self.target_tag = tag
+                self.last_vector = None
+            except:
+                print("Unnamed cluster not found.")
         elif self.in_text.startswith('t+ ') or self.in_text.startswith('c+ '):
             self.cluster_mode = self.in_text[0] == 'c'
             try:

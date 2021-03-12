@@ -13,9 +13,6 @@ from PIL import Image
 import database
 from faces import get_faces as get_face_embeddings, load_arcface
 
-# Maximum size of (sparse) LMDB file
-map_size = 1024*1024*1024*20
-
 # Enable to run face detection and calculate face embeddings that can be used to search for faces
 faces = True
 

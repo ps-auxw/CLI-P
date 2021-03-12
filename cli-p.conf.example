@@ -1,0 +1,5 @@
+[DEFAULT]
+; 40 GB virtual memory for storing feature vectors
+vectors_map_size=42949672960
+; 16 GB virtual memory for storing settings, tags and clusters
+config_map_size=17179869184

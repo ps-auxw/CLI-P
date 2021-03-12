@@ -24,7 +24,8 @@ Make sure you have virtualenv and swig installed.
 To set things up, follow (or run) `setup.sh`. You may want to look at
 the first few lines of `build-index.py` and adjust the variables there
 to your liking. If you run it, you should get a message `All done.` at
-the end.
+the end. If you get an error about running out of pages for the LMDB,
+rename `cli-p.conf.example` to `cli-p.conf` and customize it.
 
 ## Indexing images in a folder
 

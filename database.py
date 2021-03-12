@@ -4,6 +4,7 @@ import numpy as np
 import hashlib
 import struct
 from numpack import s2b, b2s
+from db_config import vectors_map_size
 
 # LMDB environment
 env = None
@@ -26,9 +27,9 @@ idx_face_db = None
 # uint64
 int_type = '<Q'
 
-def open_db(map_size=1024*1024*1024*20, pack_type='<Q'):
+def open_db(pack_type='<Q'):
     global env, fn_db, skip_db, fix_idx_db, idx_db, idx_face_db, int_type
-    env = lmdb.open('vectors.lmdb', map_size=map_size, max_dbs=5)
+    env = lmdb.open('vectors.lmdb', map_size=vectors_map_size, max_dbs=5)
 
     fn_db = env.open_db(b'fn_db')
     skip_db = env.open_db(b'skip_db')

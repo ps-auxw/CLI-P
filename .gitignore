@@ -2,6 +2,7 @@
 # Anchored at top-level:
 /*.lmdb/
 /*.index
+/cli-p.conf
 
 # Python virtual environment
 # Anchored at top-level:
