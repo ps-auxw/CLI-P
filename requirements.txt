@@ -8,4 +8,3 @@ sklearn
 scikit-image
 pyxdg
 faiss-cpu==1.7.0
-pyqt5==5.14.2
