@@ -7,18 +7,60 @@ from io import StringIO
 import contextlib
 
 from PyQt5.QtCore import (
+    Qt,
     QTimer,
 )
 from PyQt5.QtWidgets import (
     qApp,
     QApplication, QMainWindow, QWidget,
-    QVBoxLayout,
-    QComboBox, QLabel, QTextEdit,
+    QSizePolicy,
+    QHBoxLayout, QVBoxLayout,
+    QComboBox, QLabel, QPushButton, QTextEdit,
 )
 
 # Load delayed, so the GUI is already visible,
 # as this may take a long time.
 query_index = None
+
+class HistoryComboBox(QComboBox):
+    def __init__(self, parent=None):
+        super(HistoryComboBox, self).__init__(parent)
+        self.isShowingPopup = False
+        self._defaultButton = None
+
+    def defaultButton(self):
+        return self._defaultButton
+
+    def setDefaultButton(self, button):
+        self._defaultButton = button
+
+    def showPopup(self):
+        super(HistoryComboBox, self).showPopup()
+        self.isShowingPopup = True
+
+    def hidePopup(self):
+        self.isShowingPopup = False
+        super(HistoryComboBox, self).hidePopup()
+
+    def keyPressEvent(self, ev):
+        key = ev.key()
+        # On Return (Here, Enter is located on the key pad, instead!),
+        # activate the associated default button.
+        # Necessary in non-dialogs.
+        if key == Qt.Key_Return and self._defaultButton != None:
+            # Propagate further, first.
+            # Necessary so the user input still gets added to the list.
+            super(HistoryComboBox, self).keyPressEvent(ev)
+            # Then, activate the default button.
+            self._defaultButton.click()
+        # On up/down, ensure the popup opens.
+        elif (key == Qt.Key_Up or key == Qt.Key_Down) and not self.isShowingPopup:
+            self.showPopup()
+            # Don't prevent default handling of the key press.
+            super(HistoryComboBox, self).keyPressEvent(ev)
+        # Otherwise, propagate key press further.
+        else:
+            super(HistoryComboBox, self).keyPressEvent(ev)
 
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
@@ -35,13 +77,35 @@ class MainWindow(QMainWindow):
         self.cvLabel = QLabel()
         self.searchOutput = QTextEdit()
         self.searchOutput.setReadOnly(True)
-        self.searchInput = QComboBox()
+
+
+        inputHBox = QHBoxLayout()
+
+        self.searchInput = HistoryComboBox()
         self.searchInput.setEditable(True)
-        self.searchInput.activated.connect(self.handleSearchInput)
+        # This fired too often, but we only want to search
+        # when the user finally hits return...
+        #self.searchInput.activated.connect(self.handleSearchInput)
+
+        self.searchInputButton = QPushButton()
+        #
+        # Doesn't work without a Dialog:
+        #self.searchInputButton.setAutoDefault(True)
+        #self.searchInputButton.setDefault(True)
+        # ..so, do this instead:
+        self.searchInput.setDefaultButton(self.searchInputButton)
+        #
+        self.searchInputButton.setText("&Go")
+        self.searchInputButton.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.searchInputButton.clicked.connect(self.handleSearchInput)
+
+        inputHBox.addWidget(self.searchInput)
+        inputHBox.addWidget(self.searchInputButton)
+
 
         vBox.addWidget(self.cvLabel)
         vBox.addWidget(self.searchOutput)
-        vBox.addWidget(self.searchInput)
+        vBox.addLayout(inputHBox)
 
         self.setCentralWidget(widget)
 
@@ -88,7 +152,9 @@ class MainWindow(QMainWindow):
         return ret
 
     def handleSearchInput(self):
-        inputText = self.searchInput.currentText()
+        inputText  = self.searchInput.currentText()
+        inputIndex = self.searchInput.currentIndex()
+        storedText = None if inputIndex == -1 else self.searchInput.itemText(inputIndex)
 
         search = self.search
         if search == None:
@@ -96,6 +162,8 @@ class MainWindow(QMainWindow):
             return
         self.appendSearchOutput(">>> " + inputText)
         search.in_text = inputText.strip()
+        if storedText != inputText:
+            self.searchInput.addItem(inputText)
         self.searchInput.clearEditText()
 
         iteration_done = self.stdoutSearchOutput(search.do_command)
