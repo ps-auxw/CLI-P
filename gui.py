@@ -81,6 +81,7 @@ class MainWindow(QMainWindow):
         self.cvLabel = QLabel()
         self.searchOutput = QTextEdit()
         self.searchOutput.setReadOnly(True)
+        self.searchHint = QLabel()
 
 
         inputHBox = QHBoxLayout()
@@ -110,6 +111,7 @@ class MainWindow(QMainWindow):
         vBox.addWidget(self.infoLabel)
         vBox.addWidget(self.cvLabel)
         vBox.addWidget(self.searchOutput)
+        vBox.addWidget(self.searchHint)
         vBox.addLayout(inputHBox)
 
         self.setCentralWidget(widget)
@@ -129,6 +131,9 @@ class MainWindow(QMainWindow):
             self.search = query_index.Search()
             self.appendSearchOutput("Instantiated search.")
             qApp.processEvents()
+
+            self.appendSearchOutput("\n" + self.search.init_msg)
+            self.searchHint.setText("Short help: " + self.search.prompt_prefix)
 
     def showEvent(self, ev):
         super(MainWindow, self).showEvent(ev)

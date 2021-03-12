@@ -112,13 +112,16 @@ class Search:
         self.target_tag = None
         self.skip_perfect = config.get_setting_bool('skip_perfect', False)
 
+        self.init_msg = "For help, type: h"
+        self.prompt_prefix = "[h,q,l,i,if,t,T,t+,t-,t?,ff,s,sp,r,a,n,ft,ct,p,k,gl] "
+
     def run_cli(self):  # (CLI: command-line interface)
-        print("For help, type: h")
+        print(self.init_msg)
         try:
             self.running_cli = True
             while self.running_cli:
                 # Handle commands
-                prefix = "[h,q,l,i,if,t,T,t+,t-,t?,ff,s,sp,r,a,n,ft,ct,p,k,gl] "
+                prefix = self.prompt_prefix
                 if not self.show_prefix:
                     prefix = ""
                 self.in_text = input(prefix + ">>> ").strip()
