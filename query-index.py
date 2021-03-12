@@ -110,13 +110,21 @@ class Search:
         self.file_filter_mode = True # Inverted?
         self.target_tag = None
         self.skip_perfect = config.get_setting_bool('skip_perfect', False)
+        self.cluster_mode = False
 
     def run_cli(self):  # (CLI: command-line interface)
-        print("For help, type: h")
+        print("A similar set of commands to the 't' commands exists with 'c'.\n"
+              "These cluster based tags are completely separate from the regular ones.\n"
+              "They require the clustering script to be run after building an index.\n"
+              "Some commands behave differently, depending on whether 't' or 'c' has\n"
+              "been least recently used.\n"
+              "\n"
+              "For help, type: h"
+             )
         try:
             while self.in_text != 'q':
                 # Handle commands
-                prefix = "[h,q,l,i,if,t,T,t+,t-,t?,ff,s,sp,r,a,n,ft,ct,p,k,gl] "
+                prefix = "[h,q,l,i,if,t,T,t+,t-,t?,c!,ff,s,sp,r,a,n,ft,ct,p,k,gl] "
                 if not self.show_prefix:
                     prefix = ""
                 self.in_text = input(prefix + ">>> ").strip()
@@ -149,6 +157,12 @@ class Search:
                   "While tag searching, press + in the window to add the green\n"
                   "detection to the tag. Press - to remove yellow the yellow frame.\n"
                   "\n"
+                  "A similar set of commands to the 't' commands exists with 'c'.\n"
+                  "These cluster based tags are completely separate from the regular ones.\n"
+                  "They require the clustering script to be run after building an index.\n"
+                  "Some commands behave differently, depending on whether 't' or 'c' has\n"
+                  "been least recently used.\n"
+                  "\n"
                   "Just press enter for more results.\n"
                   "\n"
                   "Commands:\n"
@@ -162,6 +176,9 @@ class Search:
                   "t- TAG ID F\tRemove face F from image ID from tag TAG\n"
                   "t? TAG\t\tList which faces from which images belong to TAG\n"
                   "tl\t\tList tags exist\n"
+                  "c/C/c+/c-/c?/cl\tLike the t commands, but affecting separate cluster tags instead\n"
+                  "c! TAG ID F\tScrub all entries of the same cluster as face F from image ID from TAG\n"
+                  "C! TAG ID F\tLike 'c!', but also permanently declusters all images from the cluster\n"
                   "fs\t\tToggle skipping full matches with 1.0 score\n"
                   "ff [RE]\t\tSet filename filter regular expression\n"
                   "ff!\t\tToggle filename filter inversion\n"
@@ -308,42 +325,60 @@ class Search:
             except:
                 print("Error")
             return True
-        elif self.in_text == 'tl':
+        elif self.in_text == 'tl' or self.in_text == 'cl':
+            self.cluster_mode = self.in_text[0] == 'c'
             print("Existing tags:")
             print("#Faces\tTag")
-            tags = sorted(config.list_tags(), key=lambda x: x[1])
+            tags = sorted(config.list_tags(self.cluster_mode), key=lambda x: x[1])
             for tag in tags:
                 num, name = tag
                 print(f"{num}\t{name}")
             return True
-        elif self.in_text.startswith('t+ '):
+        elif self.in_text.startswith('t+ ') or self.in_text.startswith('c+ '):
+            self.cluster_mode = self.in_text[0] == 'c'
             try:
                 parts = self.in_text[3:].split(" ")
                 tag = parts[0]
                 image_id = int(parts[1])
                 face_id = int(parts[2])
-                if not config.add_tag(tag, image_id, face_id):
+                if not config.add_tag(tag, image_id, face_id, self.cluster_mode):
                     raise Exception
                 print(f"Added face {face_id} from image {image_id} to tag {tag}.")
             except:
                 print("Adding to tag failed.")
             return True
-        elif self.in_text.startswith('t- '):
+        elif self.in_text.startswith('t- ') or self.in_text.startswith('c- '):
+            self.cluster_mode = self.in_text[0] == 'c'
             try:
                 parts = self.in_text[3:].split(" ")
                 tag = parts[0]
                 image_id = int(parts[1])
                 face_id = int(parts[2])
-                if not config.del_tag(tag, image_id, face_id):
+                if not config.del_tag(tag, image_id, face_id, self.cluster_mode):
                     raise Exception
                 print(f"Removed face {face_id} from image {image_id} from tag {tag}.")
             except:
                 print("Removing from tag failed.")
             return True
-        elif self.in_text.startswith('t? '):
+        elif self.in_text.startswith('c! ') or self.in_text.startswith('C! '):
+            self.cluster_mode = True
+            try:
+                prevent_recluster = self.in_text[0] == 'C'
+                parts = self.in_text[3:].split(" ")
+                tag = parts[0]
+                image_id = int(parts[1])
+                face_id = int(parts[2])
+                if not config.purge_cluster_tag(tag, image_id, face_id, prevent_recluster):
+                    raise Exception
+                print(f"Scrubbed the cluster of face {face_id} from image {image_id} from tag {tag}.")
+            except:
+                print("Scrubbing from tag failed.")
+            return True
+        elif self.in_text.startswith('t? ') or self.in_text.startswith('c? '):
+            self.cluster_mode = self.in_text[0] == 'c'
             try:
                 tag = self.in_text[3:]
-                self.results = config.get_tag_contents(tag)
+                self.results = config.get_tag_contents(tag, self.cluster_mode)
                 if self.results is None or tag == "" or len(self.results) < 1:
                     print("Not found.")
                     return True
@@ -371,7 +406,7 @@ class Search:
                     print(f"Showing {filename}:")
                     print(f"Image\tFace\tTag\tBounding box")
                     for i, annotation in enumerate(annotations):
-                        tag = config.get_face_tag(annotation, self.face_threshold)
+                        tag = config.get_face_tag(annotation, self.face_threshold, self.cluster_mode)
                         print(f"{image_id}\t{i}\t{tag}\t{annotation['bbox']}")
                 except:
                     print("Not found.")
@@ -383,7 +418,8 @@ class Search:
             except:
                 print("Error")
                 return True
-        elif self.in_text.startswith('t ') or self.in_text.startswith('T '):
+        elif self.in_text.startswith('t ') or self.in_text.startswith('T ') or self.in_text.startswith('c ') or self.in_text.startswith('C '):
+            self.cluster_mode = self.in_text[0] == 'c'
             try:
                 self.search_mode = 1
                 self.last_vector = None
@@ -393,7 +429,7 @@ class Search:
                 self.offset = -1
                 self.last_j = -1
 
-                self.features = config.get_tag_embeddings(tag)
+                self.features = config.get_tag_embeddings(tag, self.cluster_mode)
                 if self.in_text.startswith('T '):
                     average = self.features.mean(0, keepdims=True)
                     average = normalize(average)
@@ -558,7 +594,7 @@ class Search:
                 if (re.search(self.file_filter, tfn) is None) == self.file_filter_mode:
                     j, compensate = go(j, go_dir, compensate)
                     continue
-            if self.skip_perfect and (result[1] > 0.999999 or config.has_tag(self.target_tag, fix_idx)) and tried_j != j:
+            if self.skip_perfect and (result[1] > 0.999999 or config.has_tag(self.target_tag, fix_idx, face_id, self.cluster_mode)) and tried_j != j:
                     tried_j = j
                     j, compensate = go(j, go_dir, compensate)
                     continue
@@ -568,10 +604,10 @@ class Search:
                 annotations = database.get_faces(database.i2b(fix_idx))
                 found_tag = False
                 for a_i, annotation in enumerate(annotations):
-                    annotation['tag'] = config.get_face_tag(annotation, self.face_threshold)
+                    annotation['tag'] = config.get_face_tag(annotation, self.face_threshold, self.cluster_mode)
                     if face_id is not None and a_i == face_id and result[1] > 0.99999:
                         annotation['color'] = (0, 255, 255)
-                    if self.target_tag is not None and annotation['tag'] == self.target_tag:
+                    if self.target_tag is not None and (annotation['tag'] == self.target_tag or (self.cluster_mode and annotation['tag'] == "")):
                         found_tag = True
                 if self.target_tag is not None and not found_tag:
                     j, compensate = go(j, go_dir, compensate)
@@ -627,13 +663,13 @@ class Search:
                         go_dir = 1
                         if self.target_tag is not None:
                             result[1] = 1.0
-                            config.add_tag(self.target_tag, fix_idx, face_id)
+                            config.add_tag(self.target_tag, fix_idx, face_id, self.cluster_mode)
                         break
                     elif key == ord('-'):
                         go_dir = 1
                         if self.target_tag is not None:
                             result[1] = self.face_threshold + 0.00001
-                            config.del_tag(self.target_tag, fix_idx, face_id)
+                            config.del_tag(self.target_tag, fix_idx, face_id, self.cluster_mode)
                         break
                 if do_break:
                     break
