@@ -577,7 +577,7 @@ class Search:
     def do_display(self):
         compensate = 0
         n_results = 0
-        if n_results is not None:
+        if self.results is not None:
             n_results = len(self.results)
         j = self.last_j + 1
         go_dir = 1
