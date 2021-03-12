@@ -356,7 +356,6 @@ class Search:
                 self.last_j = -1
                 print(f"Showing unnamed cluster {cluster_id}:")
                 self.search_mode = -2
-                self.target_tag = tag
                 self.last_vector = None
             except:
                 print("Unnamed cluster not found.")
