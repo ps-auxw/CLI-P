@@ -108,6 +108,7 @@ class MainWindow(QMainWindow):
         vBox.addLayout(inputHBox)
 
         self.setCentralWidget(widget)
+        self.searchInput.setFocus()
 
     def loadModules(self):
         global query_index
