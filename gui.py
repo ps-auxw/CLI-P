@@ -68,12 +68,16 @@ class MainWindow(QMainWindow):
 
         self.search = None
 
+        self.setWindowTitle("CLI-P GUI")
         # TODO: Take from config db.
         self.resize(1600, 900)
 
         widget = QWidget(self)
         vBox = QVBoxLayout(widget)
 
+        self.infoLabel = QLabel(
+            "ps-auxw says, \"CLI-P is commandline driven semantic image search using OpenAI's CLIP\"\n"
+            "canvon says, \"This is a GUI for ps-auxw's CLI-P\"")
         self.cvLabel = QLabel()
         self.searchOutput = QTextEdit()
         self.searchOutput.setReadOnly(True)
@@ -103,6 +107,7 @@ class MainWindow(QMainWindow):
         inputHBox.addWidget(self.searchInputButton)
 
 
+        vBox.addWidget(self.infoLabel)
         vBox.addWidget(self.cvLabel)
         vBox.addWidget(self.searchOutput)
         vBox.addLayout(inputHBox)
