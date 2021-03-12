@@ -86,6 +86,7 @@ class Search:
         self.faces_index = faiss.read_index("faces.index")
         self.faces_index.nprobe = config.get_setting_int("probe", 64)
 
+        self.running_cli = None
         self.in_text = ""
         self.texts = None
         self.features = None
@@ -114,7 +115,8 @@ class Search:
     def run_cli(self):  # (CLI: command-line interface)
         print("For help, type: h")
         try:
-            while self.in_text != 'q':
+            self.running_cli = True
+            while self.running_cli:
                 # Handle commands
                 prefix = "[h,q,l,i,if,t,T,t+,t-,t?,ff,s,sp,r,a,n,ft,ct,p,k,gl] "
                 if not self.show_prefix:
@@ -133,6 +135,7 @@ class Search:
 
     def do_command(self):
         if self.in_text == 'q':
+            self.running_cli = False
             return True
         elif self.in_text == 'h':
             print("Enter a search query and you will receive a list of best matching\n"

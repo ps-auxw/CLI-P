@@ -168,6 +168,9 @@ class MainWindow(QMainWindow):
 
         iteration_done = self.stdoutSearchOutput(search.do_command)
         if iteration_done:
+            # Check for q (quit) command.
+            if search.running_cli == False:
+                self.close()
             return
 
         self.stdoutSearchOutput(search.do_search)
