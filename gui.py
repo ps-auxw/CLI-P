@@ -68,7 +68,6 @@ class MainWindow(QMainWindow):
 
         self.search = None
 
-        self.setWindowTitle("CLI-P GUI")
         # TODO: Take from config db.
         self.resize(1600, 900)
 
@@ -190,6 +189,7 @@ class MainWindow(QMainWindow):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
+    app.setApplicationName("CLI-P GUI")
     win = MainWindow()
     win.show()
     sys.exit(app.exec_())
