@@ -3,6 +3,7 @@ import os
 import os.path
 import sys
 import re
+import enum
 import numpy as np
 import lmdb
 import torch_device
@@ -65,6 +66,14 @@ for orientation in ExifTags.TAGS.keys():
         break
 
 
+@enum.unique
+class SearchMode(enum.IntEnum):
+    CLIP = 0
+    FACE = enum.auto()
+    CLIP_FACE = enum.auto()
+    NONE = -1
+    NONE_NOSKIP = -2
+
 class Search:
 
     def __init__(self, device=None):
@@ -97,7 +106,7 @@ class Search:
         self.k = config.get_setting_int("k", 50)
         self.offset = 0
         self.last_j = -1
-        self.search_mode = -1
+        self.search_mode = SearchMode.NONE
         self.max_res = None
         if config.get_setting_bool("max_res_set", False):
             self.max_res = (config.get_setting_int("max_res_x", 1280), config.get_setting_int("max_res_y", 720))
@@ -362,7 +371,7 @@ class Search:
                 self.offset = -1
                 self.last_j = -1
                 print(f"Showing unnamed cluster {cluster_id}:")
-                self.search_mode = -2
+                self.search_mode = SearchMode.NONE_NOSKIP
                 self.last_vector = None
             except:
                 print("Unnamed cluster not found.")
@@ -420,7 +429,7 @@ class Search:
                 print(f"Image\tFace")
                 for result, score in self.results:
                     print(f"{result[0]}\t{result[1]}")
-                self.search_mode = -2
+                self.search_mode = SearchMode.NONE_NOSKIP
                 self.target_tag = tag
                 self.last_vector = None
             except:
@@ -444,7 +453,7 @@ class Search:
                     print("Not found.")
                     return True
                 self.results = [(image_id, 1.0)] * self.k
-                self.search_mode = -2
+                self.search_mode = SearchMode.NONE_NOSKIP
                 self.target_tag = None
                 self.last_vector = None
             except:
@@ -453,7 +462,7 @@ class Search:
         elif self.in_text.startswith('t ') or self.in_text.startswith('T ') or self.in_text.startswith('c ') or self.in_text.startswith('C '):
             self.cluster_mode = self.in_text[0] == 'c'
             try:
-                self.search_mode = 1
+                self.search_mode = SearchMode.FACE
                 self.last_vector = None
                 parts = self.in_text[2:].split(" ", 2)
                 tag = parts[0]
@@ -468,12 +477,12 @@ class Search:
                     self.features = np.append(self.features, average, axis=0)
                 if self.features is None:
                     print("Not found.")
-                    self.search_mode = -1
+                    self.search_mode = SearchMode.NONE
                     self.last_vector = None
                     return True
                 if len(parts) > 1:
                     self.face_features = self.features
-                    self.search_mode = 2
+                    self.search_mode = SearchMode.CLIP_FACE
                     self.texts = clip.tokenize([parts[1]]).to(self.device)
                     self.features = normalize(self.model.encode_text(self.texts).detach().cpu().numpy().astype('float32'))
                 print(f"Similar faces to {tag}:")
@@ -482,7 +491,7 @@ class Search:
                 return True
         elif self.in_text.startswith('if '):
             try:
-                self.search_mode = 1
+                self.search_mode = SearchMode.FACE
                 self.target_tag = None
                 self.last_vector = None
                 parts = self.in_text[3:].split(" ", 3)
@@ -496,13 +505,13 @@ class Search:
                 self.features = annotations[face_id]['embedding']
                 if len(parts) > 2:
                     self.face_features = self.features
-                    self.search_mode = 2
+                    self.search_mode = SearchMode.CLIP_FACE
                     self.texts = clip.tokenize([parts[2]]).to(self.device)
                     self.features = normalize(self.model.encode_text(self.texts).detach().cpu().numpy().astype('float32'))
                 print(f"Similar faces to {face_id} in {image_id}:")
             except:
                 print("Not found.")
-                self.search_mode = -1
+                self.search_mode = SearchMode.NONE
                 self.last_vector = None
                 return True
         elif self.in_text.startswith('i '):
@@ -516,7 +525,7 @@ class Search:
             except:
                 print("Not found.")
                 return True
-            self.search_mode = 0
+            self.search_mode = SearchMode.CLIP
             self.target_tag = None
             self.last_vector = None
         elif self.in_text == '':
@@ -528,12 +537,12 @@ class Search:
             self.last_j = -1
             self.texts = clip.tokenize([self.in_text]).to(self.device)
             self.features = normalize(self.model.encode_text(self.texts).detach().cpu().numpy().astype('float32'))
-            self.search_mode = 0
+            self.search_mode = SearchMode.CLIP
             self.target_tag = None
             self.last_vector = None
 
     def do_search(self):
-        if self.search_mode == 0:
+        if self.search_mode is SearchMode.CLIP:
             # Search CLIP features
             search_start = time.perf_counter()
             last_results_num = -1
@@ -563,14 +572,14 @@ class Search:
                         valid_results += 1
             search_time = time.perf_counter() - search_start
             print(f"Search time: {search_time:.4f}s")
-        elif self.search_mode == 1:
+        elif self.search_mode is SearchMode.FACE:
             # Search face embedding
             search_start = time.perf_counter()
             D, I = self.faces_index.search(self.features, self.k + self.offset + 2)
             self.results = merge_faiss_results(D, I, database.get_idx_face)
             search_time = time.perf_counter() - search_start
             print(f"Search time: {search_time:.4f}s")
-        elif self.search_mode == 2:
+        elif self.search_mode == SearchMode.CLIP_FACE:
             # Search CLIP features containing face embedding
             search_start = time.perf_counter()
             _, D, I = self.faces_index.range_search(x=self.face_features, thresh=self.face_threshold)
@@ -596,7 +605,7 @@ class Search:
                 break
             j = min(max(j, 0), n_results - 1)
             result = self.results[j]
-            if self.search_mode == 1 and result[1] < self.face_threshold:
+            if self.search_mode is SearchMode.FACE and result[1] < self.face_threshold:
                 break
             fix_idx = None
             face_id = None
@@ -607,7 +616,7 @@ class Search:
                 fix_idx = result[0][0]
                 tfn = database.get_fix_idx_filename(fix_idx)
                 vector = database.get_fix_idx_vector(fix_idx)
-                if self.last_vector is not None and np.array_equal(vector, self.last_vector) and self.search_mode != -2 and tried_j != j:
+                if self.last_vector is not None and np.array_equal(vector, self.last_vector) and self.search_mode is not SearchMode.NONE_NOSKIP and tried_j != j:
                     tried_j = j
                     j, compensate = go(j, go_dir, compensate)
                     continue
@@ -617,7 +626,7 @@ class Search:
                 fix_idx = result[0]
                 tfn = database.get_fix_idx_filename(fix_idx)
                 vector = database.get_fix_idx_vector(fix_idx)
-                if self.last_vector is not None and np.array_equal(vector, self.last_vector) and self.search_mode != -2:
+                if self.last_vector is not None and np.array_equal(vector, self.last_vector) and self.search_mode is not SearchMode.NONE_NOSKIP:
                     j, compensate = go(j, go_dir, compensate)
                     continue
                 self.last_vector = vector
