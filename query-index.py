@@ -86,6 +86,7 @@ class Search:
         self.faces_index = faiss.read_index("faces.index")
         self.faces_index.nprobe = config.get_setting_int("probe", 64)
 
+        self.running_cli = None
         self.in_text = ""
         self.texts = None
         self.features = None
@@ -112,19 +113,24 @@ class Search:
         self.skip_perfect = config.get_setting_bool('skip_perfect', False)
         self.cluster_mode = False
 
+        self.init_msg = (
+            "A similar set of commands to the 't' commands exists with 'c'.\n"
+            "These cluster based tags are completely separate from the regular ones.\n"
+            "They require the clustering script to be run after building an index.\n"
+            "Some commands behave differently, depending on whether 't' or 'c' has\n"
+            "been least recently used.\n"
+            "\n"
+            "For help, type: h"
+        )
+        self.prompt_prefix = "[h,q,l,i,if,t,T,t+,t-,t?,c!,ff,s,sp,r,a,n,ft,ct,p,k,gl] "
+
     def run_cli(self):  # (CLI: command-line interface)
-        print("A similar set of commands to the 't' commands exists with 'c'.\n"
-              "These cluster based tags are completely separate from the regular ones.\n"
-              "They require the clustering script to be run after building an index.\n"
-              "Some commands behave differently, depending on whether 't' or 'c' has\n"
-              "been least recently used.\n"
-              "\n"
-              "For help, type: h"
-             )
+        print(self.init_msg)
         try:
-            while self.in_text != 'q':
+            self.running_cli = True
+            while self.running_cli:
                 # Handle commands
-                prefix = "[h,q,l,i,if,t,T,t+,t-,t?,c!,ff,s,sp,r,a,n,ft,ct,p,k,gl] "
+                prefix = self.prompt_prefix
                 if not self.show_prefix:
                     prefix = ""
                 self.in_text = input(prefix + ">>> ").strip()
@@ -141,6 +147,7 @@ class Search:
 
     def do_command(self):
         if self.in_text == 'q':
+            self.running_cli = False
             return True
         elif self.in_text == 'h':
             print("Enter a search query and you will receive a list of best matching\n"
