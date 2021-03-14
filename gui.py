@@ -10,12 +10,16 @@ from PyQt5.QtCore import (
     Qt,
     QTimer,
 )
+from PyQt5.QtGui import (
+    QStandardItemModel, QStandardItem,
+)
 from PyQt5.QtWidgets import (
     qApp,
     QApplication, QMainWindow, QWidget,
     QSizePolicy,
-    QHBoxLayout, QVBoxLayout,
+    QHBoxLayout, QVBoxLayout, QTabWidget,
     QComboBox, QLabel, QPushButton, QTextEdit,
+    QTableView,
 )
 
 # Load delayed, so the GUI is already visible,
@@ -71,18 +75,43 @@ class MainWindow(QMainWindow):
         # TODO: Take from config db.
         self.resize(1600, 900)
 
-        widget = QWidget(self)
-        vBox = QVBoxLayout(widget)
+        centralWidget = QWidget()
+        centralVBox = QVBoxLayout(centralWidget)
+
+        self.tabWidget = QTabWidget()
+
+
+        # Page 1: Console
+        self.consoleTabPage = QWidget()
+        consoleVBox = QVBoxLayout(self.consoleTabPage)
 
         self.infoLabel = QLabel(
             "ps-auxw says, \"CLI-P is commandline driven semantic image search using OpenAI's CLIP\"\n"
             "canvon says, \"This is a GUI for ps-auxw's CLI-P\"")
-        self.cvLabel = QLabel()
         self.searchOutput = QTextEdit()
         self.searchOutput.setReadOnly(True)
+
+        consoleVBox.addWidget(self.infoLabel)
+        consoleVBox.addWidget(self.searchOutput)
+        self.tabWidget.addTab(self.consoleTabPage, "&1 Console")
+
+
+        # Page 2: Images
+        self.imagesTabPage = QWidget()
+        imagesVBox = QVBoxLayout(self.imagesTabPage)
+
+        self.imageLabel = QLabel()
+        self.imagesTableView = QTableView()
+
+        imagesVBox.addWidget(self.imageLabel)
+        imagesVBox.addWidget(self.imagesTableView)
+        self.tabWidget.addTab(self.imagesTabPage, "&2 Images")
+
+
         self.searchHint = QLabel()
 
 
+        # Search input box & go button
         inputHBox = QHBoxLayout()
 
         self.searchInput = HistoryComboBox()
@@ -107,14 +136,14 @@ class MainWindow(QMainWindow):
         inputHBox.addWidget(self.searchInputButton)
 
 
-        vBox.addWidget(self.infoLabel)
-        vBox.addWidget(self.cvLabel)
-        vBox.addWidget(self.searchOutput)
-        vBox.addWidget(self.searchHint)
-        vBox.addLayout(inputHBox)
+        centralVBox.addWidget(self.tabWidget)
+        centralVBox.addWidget(self.searchHint)
+        centralVBox.addLayout(inputHBox)
 
-        self.setCentralWidget(widget)
+        self.setCentralWidget(centralWidget)
         self.searchInput.setFocus()
+
+        self.createSearchResultsModel()
 
     def loadModules(self):
         global query_index
@@ -184,8 +213,24 @@ class MainWindow(QMainWindow):
             return
 
         self.stdoutSearchOutput(search.do_search)
-        self.stdoutSearchOutput(search.do_display)
+        #self.stdoutSearchOutput(search.do_display)
+        self.appendSearchOutput("Building results model...")
+        for result in search.results:
+            self.appendToSearchResultsModel(result)
+        self.appendSearchOutput("Built results model.")
 
+    def createSearchResultsModel(self):
+        model = QStandardItemModel(0, 4)
+        model.setHorizontalHeaderLabels(["score", "fix_idx", "face_id", "filename"])
+        self.searchResultsModel = model
+        self.imagesTableView.setModel(model)
+        self.imagesTableView.horizontalHeader().setStretchLastSection(True)
+
+    def appendToSearchResultsModel(self, result):
+        search = self.search
+        if search.search_mode is query_index.SearchMode.FACE and result[1] < search.face_threshold:
+            return
+        # FIXME
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
