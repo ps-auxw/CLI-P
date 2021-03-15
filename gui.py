@@ -215,7 +215,13 @@ class MainWindow(QMainWindow):
         self.stdoutSearchOutput(search.do_search)
         #self.stdoutSearchOutput(search.do_display)
         self.appendSearchOutput("Building results model...")
-        for result in search.results:
+        j = 0
+        while j is not None:
+            result, j, _ = search.prepare_result(j)
+            if j is None:
+                break
+            elif result is None:
+                continue
             self.appendToSearchResultsModel(result)
         self.appendSearchOutput("Built results model.")
 
@@ -227,10 +233,14 @@ class MainWindow(QMainWindow):
         self.imagesTableView.horizontalHeader().setStretchLastSection(True)
 
     def appendToSearchResultsModel(self, result):
-        search = self.search
-        if search.search_mode is query_index.SearchMode.FACE and result[1] < search.face_threshold:
-            return
-        # FIXME
+        model = self.searchResultsModel
+        model.appendRow([
+            QStandardItem(str(result.score)),
+            QStandardItem(str(result.fix_idx)),
+            QStandardItem(str(result.face_id)),
+            QStandardItem(str(result.tfn)),
+        ])
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
