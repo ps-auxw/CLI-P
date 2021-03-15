@@ -12,6 +12,7 @@ from PyQt5.QtCore import (
 )
 from PyQt5.QtGui import (
     QStandardItemModel, QStandardItem,
+    QImage, QPixmap,
 )
 from PyQt5.QtWidgets import (
     qApp,
@@ -71,6 +72,7 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__(parent)
 
         self.search = None
+        self.searchResultSelected = None
 
         # TODO: Take from config db.
         self.resize(1600, 900)
@@ -102,6 +104,7 @@ class MainWindow(QMainWindow):
 
         self.imageLabel = QLabel()
         self.imagesTableView = QTableView()
+        self.imagesTableView.activated.connect(self.searchResultsActivated)
 
         imagesVBox.addWidget(self.imageLabel)
         imagesVBox.addWidget(self.imagesTableView)
@@ -234,12 +237,37 @@ class MainWindow(QMainWindow):
 
     def appendToSearchResultsModel(self, result):
         model = self.searchResultsModel
-        model.appendRow([
-            QStandardItem(str(result.score)),
-            QStandardItem(str(result.fix_idx)),
-            QStandardItem(str(result.face_id)),
-            QStandardItem(str(result.tfn)),
-        ])
+        scoreItem  = QStandardItem(str(result.score))
+        fixIdxItem = QStandardItem(str(result.fix_idx))
+        faceIdItem = QStandardItem(str(result.face_id))
+        tfnItem    = QStandardItem(str(result.tfn))
+        items = [scoreItem, fixIdxItem, faceIdItem, tfnItem]
+        for item in items:
+            item.setData(result)
+        model.appendRow(items)
+
+    def searchResultsActivated(self, index):
+        result = index.data(Qt.UserRole + 1)
+        self.showSearchResult(result)
+
+    def showSearchResult(self, result):
+        if self.searchResultSelected is result:
+            return
+        self.searchResultSelected = result
+        if result is None:
+            return
+        self.appendSearchOutput(result.format_output())
+        # Prepare image.
+        try:
+            image = self.search.prepare_image(result)
+            if image is None:
+                raise RuntimeError("No image.")
+        except Exception as ex:
+            self.appendSearchOutput(f"Error preparing image: {ex}")
+            return
+        # Convert prepared image to Qt/GUI.
+        qtImage = QImage(image.data, image.shape[1], image.shape[0], QImage.Format_RGB888).rgbSwapped()
+        self.imageLabel.setPixmap(QPixmap.fromImage(qtImage))
 
 
 if __name__ == '__main__':
