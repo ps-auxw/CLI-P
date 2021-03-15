@@ -209,6 +209,7 @@ class MainWindow(QMainWindow):
         if storedText != inputText:
             self.searchInput.addItem(inputText)
         self.searchInput.clearEditText()
+        self.clearSearchResultsModel()
 
         iteration_done = self.stdoutSearchOutput(search.do_command)
         if iteration_done:
@@ -218,10 +219,14 @@ class MainWindow(QMainWindow):
             return
 
         self.stdoutSearchOutput(search.do_search)
+        n_results = 0 if search.results is None else len(search.results)
+        if not n_results > 0:
+            self.appendSearchOutput("No results.")
+            return
         #self.stdoutSearchOutput(search.do_display)
         self.appendSearchOutput("Building results model...")
         j = 0
-        while j is not None:
+        while j < n_results:
             result, j, _ = search.prepare_result(j)
             if j is None:
                 break
@@ -236,6 +241,10 @@ class MainWindow(QMainWindow):
         self.searchResultsModel = model
         self.imagesTableView.setModel(model)
         self.imagesTableView.horizontalHeader().setStretchLastSection(True)
+
+    def clearSearchResultsModel(self):
+        self.searchResultSelected = None
+        self.searchResultsModel.clear()
 
     def appendToSearchResultsModel(self, result):
         model = self.searchResultsModel
