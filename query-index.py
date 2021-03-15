@@ -714,7 +714,8 @@ class Search:
                         break
                 if do_break:
                     break
-            except:
+            except Exception as ex:
+                print(f"Error displaying result image {j+1}/{n_results}: {ex}")
                 j, compensate = go(j, go_dir, compensate)
                 continue
             j = j + go_dir
