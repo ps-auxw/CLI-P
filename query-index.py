@@ -662,6 +662,37 @@ class Search:
                 return None, j, compensate
         return result, j, compensate
 
+    def prepare_image(self, result):
+        image = cv2.imread(result.tfn, cv2.IMREAD_COLOR)
+        if image is None or image.shape[0] < 2:
+            return None
+        h, w, _ = image.shape
+        scale = 1.0
+        if self.max_res is not None:
+            need_resize = False
+            if w > self.max_res[0]:
+                factor = float(self.max_res[0])/float(w)
+                w = self.max_res[0]
+                h *= factor
+                need_resize = True
+                scale *= factor
+            if h > self.max_res[1]:
+                factor = float(self.max_res[1])/float(h)
+                h = self.max_res[1]
+                w *= factor
+                need_resize = True
+                scale *= factor
+            if need_resize:
+                image = cv2.resize(image, (int(w + 0.5), int(h + 0.5)), interpolation=cv2.INTER_LANCZOS4)
+        if self.show_faces:
+            pillow_image = Image.open(result.tfn)
+            exif_data = pillow_image._getexif()
+            exif_orientation = None
+            if exif_data is not None and orientation in exif_data:
+                exif_orientation = exif_data[orientation]
+            image = annotate_faces(result.annotations, image=image, scale=scale, face_id=result.face_id, orientation=exif_orientation, skip_landmarks=True)
+        return image
+
     def do_display(self):
         compensate = 0
         n_results = 0
@@ -682,35 +713,10 @@ class Search:
             elif result is None:
                 continue
             try:
-                image = cv2.imread(result.tfn, cv2.IMREAD_COLOR)
-                if image is None or image.shape[0] < 2:
+                image = self.prepare_image(result)
+                if image is None:
                     j, compensate = go(j, go_dir, compensate)
                     continue
-                h, w, _ = image.shape
-                scale = 1.0
-                if self.max_res is not None:
-                    need_resize = False
-                    if w > self.max_res[0]:
-                        factor = float(self.max_res[0])/float(w)
-                        w = self.max_res[0]
-                        h *= factor
-                        need_resize = True
-                        scale *= factor
-                    if h > self.max_res[1]:
-                        factor = float(self.max_res[1])/float(h)
-                        h = self.max_res[1]
-                        w *= factor
-                        need_resize = True
-                        scale *= factor
-                    if need_resize:
-                        image = cv2.resize(image, (int(w + 0.5), int(h + 0.5)), interpolation=cv2.INTER_LANCZOS4)
-                if self.show_faces:
-                    pillow_image = Image.open(result.tfn)
-                    exif_data = pillow_image._getexif()
-                    exif_orientation = None
-                    if exif_data is not None and orientation in exif_data:
-                        exif_orientation = exif_data[orientation]
-                    image = annotate_faces(result.annotations, image=image, scale=scale, face_id=result.face_id, orientation=exif_orientation, skip_landmarks=True)
                 cv2.imshow('Image', image)
                 if self.align_window:
                     cv2.moveWindow('Image', 0, 0)
