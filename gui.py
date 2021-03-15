@@ -103,6 +103,8 @@ class MainWindow(QMainWindow):
         imagesVBox = QVBoxLayout(self.imagesTabPage)
 
         self.imageLabel = QLabel()
+        self.imageLabel.setMaximumHeight(self.size().height() * 8 / 10)
+        self.imageLabel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         self.imagesTableView = QTableView()
         self.imagesTableView.activated.connect(self.searchResultsActivated)
 
