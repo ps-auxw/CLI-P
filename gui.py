@@ -368,10 +368,10 @@ class MainWindow(QMainWindow):
 
     def searchResultsActivated(self, index):
         result = index.data(Qt.UserRole + 1)
-        self.showSearchResult(result)
+        self.showSearchResult(result, force=True)
 
-    def showSearchResult(self, result):
-        if self.searchResultSelected is result:
+    def showSearchResult(self, result, force=False):
+        if not force and self.searchResultSelected is result:
             return
         self.searchResultSelected = result
         if result is None:
@@ -400,7 +400,7 @@ class MainWindow(QMainWindow):
         if recreatedResult is None:
             self.appendSearchOutput(f"Recreating search results model row {result.gui_rowOffset+1} failed: No recreated result returned.")
             return
-        self.showSearchResult(recreatedResult)
+        self.showSearchResult(recreatedResult, force=True)
 
     def imagesActionAddTagTriggered(self):
         search = self.search
