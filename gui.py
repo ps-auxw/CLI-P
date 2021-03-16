@@ -396,7 +396,7 @@ class MainWindow(QMainWindow):
         if result is None:
             self.appendSearchOutput("Update search result selected: No search result selected.")
             return
-        updateCode(result)
+        self.stdoutSearchOutput(lambda: updateCode(result))
         recreatedResult = self.recreateSearchResultsModelRow(result)
         if recreatedResult is None:
             return

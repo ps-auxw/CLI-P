@@ -384,7 +384,7 @@ class Search:
                 face_id = int(parts[2])
                 if not config.add_tag(tag, image_id, face_id, self.cluster_mode):
                     raise Exception
-                print(f"Added face {face_id} from image {image_id} to tag {tag}.")
+                print(f"Added face {face_id} from image {image_id} to{' cluster' if self.cluster_mode else ''} tag {tag}.")
             except:
                 print("Adding to tag failed.")
             return True
@@ -397,7 +397,7 @@ class Search:
                 face_id = int(parts[2])
                 if not config.del_tag(tag, image_id, face_id, self.cluster_mode):
                     raise Exception
-                print(f"Removed face {face_id} from image {image_id} from tag {tag}.")
+                print(f"Removed face {face_id} from image {image_id} from{' cluster' if self.cluster_mode else ''} tag {tag}.")
             except:
                 print("Removing from tag failed.")
             return True
@@ -757,12 +757,18 @@ class Search:
     def maybe_add_tag(self, result):
         if self.target_tag is not None:
             result.result_elem[1] = 1.0
-            config.add_tag(self.target_tag, result.fix_idx, result.face_id, self.cluster_mode)
+            if config.add_tag(self.target_tag, result.fix_idx, result.face_id, self.cluster_mode):
+                print(f"Added face {result.face_id} from image {result.fix_idx} to{' cluster' if self.cluster_mode else ''} tag {self.target_tag}.")
+            else:
+                print("Adding to tag failed.")
 
     def maybe_del_tag(self, result):
         if self.target_tag is not None:
             result.result_elem[1] = self.face_threshold + 0.00001
-            config.del_tag(self.target_tag, result.fix_idx, result.face_id, self.cluster_mode)
+            if config.del_tag(self.target_tag, result.fix_idx, result.face_id, self.cluster_mode):
+                print(f"Removed face {result.face_id} from image {result.fix_idx} from{' cluster' if self.cluster_mode else ''} tag {self.target_tag}.")
+            else:
+                print("Removing from tag failed.")
 
 
 if __name__ == '__main__':
