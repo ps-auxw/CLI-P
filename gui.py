@@ -394,11 +394,11 @@ class MainWindow(QMainWindow):
     def updateSearchResultSelected(self, updateCode):
         result = self.searchResultSelected
         if result is None:
+            self.appendSearchOutput("Update search result selected: No search result selected.")
             return
         updateCode(result)
         recreatedResult = self.recreateSearchResultsModelRow(result)
         if recreatedResult is None:
-            self.appendSearchOutput(f"Recreating search results model row {result.gui_rowOffset+1} failed: No recreated result returned.")
             return
         self.showSearchResult(recreatedResult, force=True)
 
