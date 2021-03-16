@@ -245,6 +245,7 @@ class MainWindow(QMainWindow):
     def clearSearchResultsModel(self):
         self.searchResultSelected = None
         self.searchResultsModel.clear()
+        self.imageLabel.clear()
 
     def appendToSearchResultsModel(self, result):
         model = self.searchResultsModel
