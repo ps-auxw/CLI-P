@@ -224,7 +224,7 @@ class MainWindow(QMainWindow):
             self.appendSearchOutput("No results.")
             return
         #self.stdoutSearchOutput(search.do_display)
-        self.appendSearchOutput("Building results model...")
+        self.appendSearchOutput(f"Building results model for {n_results} results...")
         j = 0
         while j < n_results:
             result, j, _ = search.prepare_result(j)
@@ -233,7 +233,7 @@ class MainWindow(QMainWindow):
             elif result is None:
                 continue
             self.appendToSearchResultsModel(result)
-        self.appendSearchOutput("Built results model.")
+        self.appendSearchOutput(f"Built results model with {self.searchResultsModel.rowCount()} entries.")
 
     def createSearchResultsModel(self):
         model = QStandardItemModel(0, 4)
