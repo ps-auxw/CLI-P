@@ -128,11 +128,15 @@ class MainWindow(QMainWindow):
         # Search input box & go button
         inputHBox = QHBoxLayout()
 
+        self.searchInputLabel = QLabel("&Search")
+        self.searchInputLabel.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+
         self.searchInput = HistoryComboBox()
         self.searchInput.setEditable(True)
         # This fired too often, but we only want to search
         # when the user finally hits return...
         #self.searchInput.activated.connect(self.handleSearchInput)
+        self.searchInputLabel.setBuddy(self.searchInput)
 
         self.searchInputButton = QPushButton()
         #
@@ -146,6 +150,7 @@ class MainWindow(QMainWindow):
         self.searchInputButton.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.searchInputButton.clicked.connect(self.handleSearchInput)
 
+        inputHBox.addWidget(self.searchInputLabel)
         inputHBox.addWidget(self.searchInput)
         inputHBox.addWidget(self.searchInputButton)
 
