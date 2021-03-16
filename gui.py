@@ -20,7 +20,7 @@ from PyQt5.QtWidgets import (
     qApp,
     QApplication, QMainWindow, QWidget,
     QSizePolicy,
-    QHBoxLayout, QVBoxLayout, QScrollBar, QTabWidget,
+    QHBoxLayout, QVBoxLayout, QScrollBar, QTabWidget, QToolBar,
     QComboBox, QLabel, QPushButton, QTextEdit,
     QTableView,
 )
@@ -121,11 +121,17 @@ class MainWindow(QMainWindow):
         self.imagesTabPage.resized.connect(self.imagesTabPageResized)
         imagesVBox = QVBoxLayout(self.imagesTabPage)
 
+        imgsToolBar = QToolBar()
+        self.imagesToolBar = imgsToolBar
+        self.imagesActionAddTag = imgsToolBar.addAction("Add to tag (&+)", self.imagesActionAddTagTriggered)
+        self.imagesActionDelTag = imgsToolBar.addAction("Del from tag (&-)", self.imagesActionDelTagTriggered)
+
         self.imageLabel = QLabel()
         self.imagesTableView = QTableView()
         self.imagesTableView.setEditTriggers(QTableView.NoEditTriggers)
         self.imagesTableView.activated.connect(self.searchResultsActivated)
 
+        imagesVBox.addWidget(self.imagesToolBar)
         imagesVBox.addWidget(self.imageLabel)
         imagesVBox.addWidget(self.imagesTableView)
         self.tabWidget.addTab(self.imagesTabPage, "&2 Images")
@@ -321,8 +327,7 @@ class MainWindow(QMainWindow):
         #
         self.imageLabel.clear()
 
-    def appendToSearchResultsModel(self, result):
-        model = self.searchResultsModel
+    def prepareSearchResultsModelEntry(self, result):
         scoreItem  = QStandardItem(str(result.score))
         fixIdxItem = QStandardItem(str(result.fix_idx))
         faceIdItem = QStandardItem(str(result.face_id))
@@ -330,7 +335,33 @@ class MainWindow(QMainWindow):
         items = [scoreItem, fixIdxItem, faceIdItem, tfnItem]
         for item in items:
             item.setData(result)
+        return items
+
+    def appendToSearchResultsModel(self, result):
+        model = self.searchResultsModel
+        items = self.prepareSearchResultsModelEntry(result)
+        result.gui_rowOffset = model.rowCount()
         model.appendRow(items)
+
+    def recreateSearchResultsModelRow(self, result):
+        search = self.search
+        if search is None:
+            return
+        rowOffset = result.gui_rowOffset
+        # Recreate Search.Result instance.
+        # (e.g., rereads annotations/tags.)
+        recreatedResult, j, _ = search.prepare_result(result.results_j)
+        if j is None:
+            return
+        elif recreatedResult is None:
+            return
+        recreatedResult.gui_rowOffset = rowOffset
+        # Update Qt-side model.
+        model = self.searchResultsModel
+        items = self.prepareSearchResultsModelEntry(recreatedResult)
+        for columnOffset in range(model.columnCount()):
+            model.setItem(rowOffset, columnOffset, items[columnOffset])
+        return recreatedResult
 
     def searchResultsActivated(self, index):
         result = index.data(Qt.UserRole + 1)
@@ -356,6 +387,28 @@ class MainWindow(QMainWindow):
         # Convert prepared image to Qt/GUI.
         qtImage = QImage(image.data, image.shape[1], image.shape[0], 3 * image.shape[1], QImage.Format_RGB888).rgbSwapped()
         self.imageLabel.setPixmap(QPixmap.fromImage(qtImage))
+
+    def updateSearchResultSelected(self, updateCode):
+        result = self.searchResultSelected
+        if result is None:
+            return
+        updateCode(result)
+        recreatedResult = self.recreateSearchResultsModelRow(result)
+        if recreatedResult is None:
+            return
+        self.showSearchResult(recreatedResult)
+
+    def imagesActionAddTagTriggered(self):
+        search = self.search
+        if search is None:
+            return
+        self.updateSearchResultSelected(search.maybe_add_tag)
+
+    def imagesActionDelTagTriggered(self):
+        search = self.search
+        if search is None:
+            return
+        self.updateSearchResultSelected(search.maybe_del_tag)
 
 
 if __name__ == '__main__':

@@ -591,9 +591,10 @@ class Search:
             print(f"Search time: {search_time:.4f}s")
 
     class Result:
-        def __init__(self, result_elem):
+        def __init__(self, result_elem, results_j=None):
             self.result_elem = result_elem
 
+            self.results_j = results_j
             self.fix_idx = None
             self.face_id = None
             self.tfn = None
@@ -625,7 +626,7 @@ class Search:
         Next j being None means break from the loop.
         Result being None means continue the loop, skipping the omitted result.
         """
-        result = self.Result(self.results[j])
+        result = self.Result(self.results[j], j)
         if self.search_mode is SearchMode.FACE and result.score < self.face_threshold:
             return None, None, None
         self.last_j = j
