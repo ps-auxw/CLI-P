@@ -346,14 +346,17 @@ class MainWindow(QMainWindow):
     def recreateSearchResultsModelRow(self, result):
         search = self.search
         if search is None:
+            self.appendSearchOutput("Search instance missing.")
             return
         rowOffset = result.gui_rowOffset
         # Recreate Search.Result instance.
         # (e.g., rereads annotations/tags.)
         recreatedResult, j, _ = search.prepare_result(result.results_j)
         if j is None:
+            self.appendSearchOutput(f"Failed to recreate search results model row {rowOffset+1}: Prepare result indicated end of results.")
             return
         elif recreatedResult is None:
+            self.appendSearchOutput(f"Failed to recreate search results model row {rowOffset+1}: Prepare result indicated skip.")
             return
         recreatedResult.gui_rowOffset = rowOffset
         # Update Qt-side model.
@@ -395,18 +398,21 @@ class MainWindow(QMainWindow):
         updateCode(result)
         recreatedResult = self.recreateSearchResultsModelRow(result)
         if recreatedResult is None:
+            self.appendSearchOutput(f"Recreating search results model row {result.gui_rowOffset+1} failed: No recreated result returned.")
             return
         self.showSearchResult(recreatedResult)
 
     def imagesActionAddTagTriggered(self):
         search = self.search
         if search is None:
+            self.appendSearchOutput("Search instance missing.")
             return
         self.updateSearchResultSelected(search.maybe_add_tag)
 
     def imagesActionDelTagTriggered(self):
         search = self.search
         if search is None:
+            self.appendSearchOutput("Search instance missing.")
             return
         self.updateSearchResultSelected(search.maybe_del_tag)
 
