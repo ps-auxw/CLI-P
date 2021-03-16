@@ -20,7 +20,7 @@ from PyQt5.QtWidgets import (
     qApp,
     QApplication, QMainWindow, QWidget,
     QSizePolicy,
-    QHBoxLayout, QVBoxLayout, QTabWidget,
+    QHBoxLayout, QVBoxLayout, QScrollBar, QTabWidget,
     QComboBox, QLabel, QPushButton, QTextEdit,
     QTableView,
 )
@@ -184,9 +184,17 @@ class MainWindow(QMainWindow):
     def searchInputPageChangeRequested(self, pageUp):
         w = self.tabWidget.currentWidget()
         if w is self.consoleTabPage:
-            # FIXME: Scroll console log.
-            #self.consoleTabPage.scroll()
-            pass
+            # Scroll console log.
+            out = self.searchOutput
+            height = out.viewport().height()
+            # This didn't work:
+            #out.scrollContentsBy(0, height * (-1 if pageUp else 1))
+            # This worked, but doesn't provide overlap:
+            #out.verticalScrollBar().triggerAction(QScrollBar.SliderPageStepSub if pageUp else QScrollBar.SliderPageStepAdd)
+            # So we end up with this:
+            # (It scrolls by half the viewport height.)
+            vbar = out.verticalScrollBar()
+            vbar.setValue(vbar.value() + height * (-1 if pageUp else 1) / 2)
         elif w is self.imagesTabPage:
             # Scroll in & activate search results.
             view = self.imagesTableView
