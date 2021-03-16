@@ -738,15 +738,11 @@ class Search:
                         break
                     elif key == ord('+'):
                         go_dir = 1
-                        if self.target_tag is not None:
-                            result.result_elem[1] = 1.0
-                            config.add_tag(self.target_tag, result.fix_idx, result.face_id, self.cluster_mode)
+                        self.maybe_add_tag(result)
                         break
                     elif key == ord('-'):
                         go_dir = 1
-                        if self.target_tag is not None:
-                            result.result_elem[1] = self.face_threshold + 0.00001
-                            config.del_tag(self.target_tag, result.fix_idx, result.face_id, self.cluster_mode)
+                        self.maybe_del_tag(result)
                         break
                 if do_break:
                     break
@@ -756,6 +752,16 @@ class Search:
                 continue
             j = j + go_dir
         cv2.destroyAllWindows()
+
+    def maybe_add_tag(self, result):
+        if self.target_tag is not None:
+            result.result_elem[1] = 1.0
+            config.add_tag(self.target_tag, result.fix_idx, result.face_id, self.cluster_mode)
+
+    def maybe_del_tag(self, result):
+        if self.target_tag is not None:
+            result.result_elem[1] = self.face_threshold + 0.00001
+            config.del_tag(self.target_tag, result.fix_idx, result.face_id, self.cluster_mode)
 
 
 if __name__ == '__main__':
