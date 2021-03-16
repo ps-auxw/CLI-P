@@ -9,6 +9,7 @@ import contextlib
 from PyQt5.QtCore import (
     pyqtSignal,
     Qt,
+    QItemSelectionModel,
     QTimer,
 )
 from PyQt5.QtGui import (
@@ -29,6 +30,8 @@ from PyQt5.QtWidgets import (
 query_index = None
 
 class HistoryComboBox(QComboBox):
+    pageChangeRequested = pyqtSignal(bool)
+
     def __init__(self, parent=None):
         super(HistoryComboBox, self).__init__(parent)
         self.isShowingPopup = False
@@ -62,6 +65,12 @@ class HistoryComboBox(QComboBox):
         # On up/down, ensure the popup opens.
         elif (key == Qt.Key_Up or key == Qt.Key_Down) and not self.isShowingPopup:
             self.showPopup()
+            # Don't prevent default handling of the key press.
+            super(HistoryComboBox, self).keyPressEvent(ev)
+        # On PageUp/Down, emit a signal
+        # (so this can control, e.g., scrolling of the console log).
+        elif key == Qt.Key_PageUp or key == Qt.Key_PageDown:
+            self.pageChangeRequested.emit(key == Qt.Key_PageUp)
             # Don't prevent default handling of the key press.
             super(HistoryComboBox, self).keyPressEvent(ev)
         # Otherwise, propagate key press further.
@@ -133,9 +142,12 @@ class MainWindow(QMainWindow):
 
         self.searchInput = HistoryComboBox()
         self.searchInput.setEditable(True)
+        self.searchInput.pageChangeRequested.connect(self.searchInputPageChangeRequested)
+        #
         # This fired too often, but we only want to search
         # when the user finally hits return...
         #self.searchInput.activated.connect(self.handleSearchInput)
+        #
         self.searchInputLabel.setBuddy(self.searchInput)
 
         self.searchInputButton = QPushButton()
@@ -168,6 +180,28 @@ class MainWindow(QMainWindow):
         contents = self.imagesTabPage.contentsRect()
         self.imageLabel.setMaximumSize(contents.width(), contents.height() * 8 / 10)  # 80%
         self.imageLabel.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+
+    def searchInputPageChangeRequested(self, pageUp):
+        w = self.tabWidget.currentWidget()
+        if w is self.consoleTabPage:
+            # FIXME: Scroll console log.
+            #self.consoleTabPage.scroll()
+            pass
+        elif w is self.imagesTabPage:
+            # Scroll in & activate search results.
+            view = self.imagesTableView
+            model = view.model()
+            selectionModel = view.selectionModel()
+            index = selectionModel.currentIndex()
+            nextIndex = None
+            if not index.isValid():
+                nextIndex = model.index(0, 0)
+            else:
+                nextIndex = index.siblingAtRow(index.row() + (-1 if pageUp else 1))
+            if not nextIndex.isValid():
+                return
+            selectionModel.setCurrentIndex(nextIndex, QItemSelectionModel.SelectCurrent)
+            self.searchResultsActivated(nextIndex)
 
     def loadModules(self):
         global query_index
