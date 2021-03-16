@@ -3,6 +3,7 @@
 #
 
 import sys
+import time
 from io import StringIO
 import contextlib
 
@@ -222,14 +223,18 @@ class MainWindow(QMainWindow):
         if query_index == None:
             self.appendSearchOutput("Loading query-index...")
             qApp.processEvents()
+            loadStart = time.perf_counter()
             query_index = __import__('query-index')  # TODO: Adjust file name.
-            self.appendSearchOutput("Loaded query-index.")
+            loadTime = time.perf_counter() - loadStart
+            self.appendSearchOutput(f"Loaded query-index: {loadTime:.4f}s")
             qApp.processEvents()
         if self.search == None:
             self.appendSearchOutput("Instantiating search...")
             qApp.processEvents()
+            instantiateStart = time.perf_counter()
             self.search = query_index.Search()
-            self.appendSearchOutput("Instantiated search.")
+            instantiateTime = time.perf_counter() - instantiateStart
+            self.appendSearchOutput(f"Instantiated search: {instantiateTime:.4f}s")
             qApp.processEvents()
 
             self.appendSearchOutput("\n" + self.search.init_msg)
