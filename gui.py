@@ -263,7 +263,12 @@ class MainWindow(QMainWindow):
 
     def clearSearchResultsModel(self):
         self.searchResultSelected = None
-        self.searchResultsModel.clear()
+        #
+        # Don't use clear(), as that will get rid of the header labels
+        # and column count, too...
+        #self.searchResultsModel.clear()
+        self.searchResultsModel.setRowCount(0)
+        #
         self.imageLabel.clear()
 
     def appendToSearchResultsModel(self, result):
