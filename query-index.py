@@ -662,23 +662,25 @@ class Search:
                 return None, j, compensate
         return result, j, compensate
 
-    def prepare_image(self, result):
+    def prepare_image(self, result, max_res=None):
+        if max_res is None:
+            max_res = self.max_res
         image = cv2.imread(result.tfn, cv2.IMREAD_COLOR)
         if image is None or image.shape[0] < 2:
             return None
         h, w, _ = image.shape
         scale = 1.0
-        if self.max_res is not None:
+        if max_res is not None:
             need_resize = False
-            if w > self.max_res[0]:
-                factor = float(self.max_res[0])/float(w)
-                w = self.max_res[0]
+            if w > max_res[0]:
+                factor = float(max_res[0])/float(w)
+                w = max_res[0]
                 h *= factor
                 need_resize = True
                 scale *= factor
-            if h > self.max_res[1]:
-                factor = float(self.max_res[1])/float(h)
-                h = self.max_res[1]
+            if h > max_res[1]:
+                factor = float(max_res[1])/float(h)
+                h = max_res[1]
                 w *= factor
                 need_resize = True
                 scale *= factor
