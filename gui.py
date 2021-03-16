@@ -288,6 +288,14 @@ class MainWindow(QMainWindow):
             self.appendToSearchResultsModel(result)
         self.appendSearchOutput(f"Built results model with {self.searchResultsModel.rowCount()} entries.")
 
+        # Already activate Images tab and load first image...
+        self.tabWidget.setCurrentWidget(self.imagesTabPage)
+        view = self.imagesTableView
+        nextIndex = view.model().index(0, 0)
+        if nextIndex.isValid():
+            view.selectionModel().setCurrentIndex(nextIndex, QItemSelectionModel.SelectCurrent)
+            self.searchResultsActivated(nextIndex)
+
     def createSearchResultsModel(self):
         model = QStandardItemModel(0, 4)
         model.setHorizontalHeaderLabels(["score", "fix_idx", "face_id", "filename"])
