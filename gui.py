@@ -114,6 +114,7 @@ class MainWindow(QMainWindow):
 
         self.imageLabel = QLabel()
         self.imagesTableView = QTableView()
+        self.imagesTableView.setEditTriggers(QTableView.NoEditTriggers)
         self.imagesTableView.activated.connect(self.searchResultsActivated)
 
         imagesVBox.addWidget(self.imageLabel)
