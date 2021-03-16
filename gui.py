@@ -278,7 +278,7 @@ class MainWindow(QMainWindow):
             self.appendSearchOutput(f"Error preparing image: {ex}")
             return
         # Convert prepared image to Qt/GUI.
-        qtImage = QImage(image.data, image.shape[1], image.shape[0], QImage.Format_RGB888).rgbSwapped()
+        qtImage = QImage(image.data, image.shape[1], image.shape[0], 3 * image.shape[1], QImage.Format_RGB888).rgbSwapped()
         self.imageLabel.setPixmap(QPixmap.fromImage(qtImage))
 
 
