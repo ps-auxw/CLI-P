@@ -7,6 +7,7 @@ from io import StringIO
 import contextlib
 
 from PyQt5.QtCore import (
+    pyqtSignal,
     Qt,
     QTimer,
 )
@@ -68,6 +69,14 @@ class HistoryComboBox(QComboBox):
             super(HistoryComboBox, self).keyPressEvent(ev)
 
 class MainWindow(QMainWindow):
+    class OurTabPage(QWidget):
+        resized = pyqtSignal()
+        def __init__(self, parent=None):
+            super(MainWindow.OurTabPage, self).__init__(parent)
+        def resizeEvent(self, ev):
+            super(MainWindow.OurTabPage, self).resizeEvent(ev)
+            self.resized.emit()
+
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
 
@@ -99,12 +108,11 @@ class MainWindow(QMainWindow):
 
 
         # Page 2: Images
-        self.imagesTabPage = QWidget()
+        self.imagesTabPage = self.OurTabPage()
+        self.imagesTabPage.resized.connect(self.imagesTabPageResized)
         imagesVBox = QVBoxLayout(self.imagesTabPage)
 
         self.imageLabel = QLabel()
-        self.imageLabel.setMaximumHeight(self.size().height() * 8 / 10)
-        self.imageLabel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         self.imagesTableView = QTableView()
         self.imagesTableView.activated.connect(self.searchResultsActivated)
 
@@ -149,6 +157,11 @@ class MainWindow(QMainWindow):
         self.searchInput.setFocus()
 
         self.createSearchResultsModel()
+
+    def imagesTabPageResized(self):
+        contents = self.imagesTabPage.contentsRect()
+        self.imageLabel.setMaximumSize(contents.width(), contents.height() * 8 / 10)  # 80%
+        self.imageLabel.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
 
     def loadModules(self):
         global query_index
@@ -271,7 +284,9 @@ class MainWindow(QMainWindow):
         self.appendSearchOutput(result.format_output())
         # Prepare image.
         try:
-            image = self.search.prepare_image(result)
+            size = self.imageLabel.maximumSize()
+            max_res = (size.width(), size.height())
+            image = self.search.prepare_image(result, max_res)
             if image is None:
                 raise RuntimeError("No image.")
         except Exception as ex:
