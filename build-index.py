@@ -34,7 +34,7 @@ model.eval()
 if faces:
     load_arcface()
 
-database.open_db(map_size, pack_type)
+database.open_db(pack_type)
 
 try:
     with torch.no_grad():
