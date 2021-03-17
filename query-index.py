@@ -590,6 +590,111 @@ class Search:
             search_time = time.perf_counter() - search_start
             print(f"Search time: {search_time:.4f}s")
 
+    class Result:
+        def __init__(self, result_elem):
+            self.result_elem = result_elem
+
+            self.fix_idx = None
+            self.face_id = None
+            self.tfn = None
+            self.vector = None
+            self.annotations = None
+            self.has_face_id = False
+            pos, self.score = self.result_elem
+            if type(pos) is tuple:
+                self.has_face_id = True
+                self.face_id = pos[1]
+                self.fix_idx = pos[0]
+            else:
+                self.fix_idx = pos
+        def __len__(self):
+            return len(self.result_elem)
+        def __getitem__(self, key):
+            return self.result_elem[key]
+
+        def format_output(self):
+            return (
+                f"{self.score:.4f} {self.fix_idx}" +
+                (f" {self.face_id}" if self.has_face_id else "") +
+                f" {self.tfn}"
+            )
+
+    def prepare_result(self, j, go_dir=0, compensate=0):
+        """
+        Gets from current results index j to a tuple (Result, next j, compensate).
+        Next j being None means break from the loop.
+        Result being None means continue the loop, skipping the omitted result.
+        """
+        result = self.Result(self.results[j])
+        if self.search_mode is SearchMode.FACE and result.score < self.face_threshold:
+            return None, None, None
+        self.last_j = j
+        # Retrieve tfn, vector.
+        result.tfn = database.get_fix_idx_filename(result.fix_idx)
+        result.vector = database.get_fix_idx_vector(result.fix_idx)
+        if self.last_vector is not None and np.array_equal(result.vector, self.last_vector) and self.search_mode is not SearchMode.NONE_NOSKIP and (self.tried_j != j if result.has_face_id else True):
+            if result.has_face_id:
+                self.tried_j = j
+            j, compensate = go(j, go_dir, compensate)
+            return None, j, compensate
+        self.last_vector = result.vector
+        if self.file_filter is not None:
+            if (re.search(self.file_filter, result.tfn) is None) == self.file_filter_mode:
+                j, compensate = go(j, go_dir, compensate)
+                return None, j, compensate
+        if self.skip_perfect and (result.score > 0.999999 or config.has_tag(self.target_tag, result.fix_idx, result.face_id, self.cluster_mode)) and self.tried_j != j:
+                self.tried_j = j
+                j, compensate = go(j, go_dir, compensate)
+                return None, j, compensate
+        self.tried_j = -1
+        # Retrieve annotations.
+        if self.show_faces or self.target_tag is not None:
+            result.annotations = database.get_faces(database.i2b(result.fix_idx))
+            found_tag = False
+            for a_i, annotation in enumerate(result.annotations):
+                annotation['tag'] = config.get_face_tag(annotation, self.face_threshold, self.cluster_mode)
+                if result.face_id is not None and a_i == result.face_id and result.score > 0.99999:
+                    annotation['color'] = (0, 255, 255)
+                if self.target_tag is not None and (annotation['tag'] == self.target_tag or (self.cluster_mode and annotation['tag'] == "")):
+                    found_tag = True
+            if self.target_tag is not None and not found_tag:
+                j, compensate = go(j, go_dir, compensate)
+                return None, j, compensate
+        return result, j, compensate
+
+    def prepare_image(self, result, max_res=None):
+        if max_res is None:
+            max_res = self.max_res
+        image = cv2.imread(result.tfn, cv2.IMREAD_COLOR)
+        if image is None or image.shape[0] < 2:
+            return None
+        h, w, _ = image.shape
+        scale = 1.0
+        if max_res is not None:
+            need_resize = False
+            if w > max_res[0]:
+                factor = float(max_res[0])/float(w)
+                w = max_res[0]
+                h *= factor
+                need_resize = True
+                scale *= factor
+            if h > max_res[1]:
+                factor = float(max_res[1])/float(h)
+                h = max_res[1]
+                w *= factor
+                need_resize = True
+                scale *= factor
+            if need_resize:
+                image = cv2.resize(image, (int(w + 0.5), int(h + 0.5)), interpolation=cv2.INTER_LANCZOS4)
+        if self.show_faces:
+            pillow_image = Image.open(result.tfn)
+            exif_data = pillow_image._getexif()
+            exif_orientation = None
+            if exif_data is not None and orientation in exif_data:
+                exif_orientation = exif_data[orientation]
+            image = annotate_faces(result.annotations, image=image, scale=scale, face_id=result.face_id, orientation=exif_orientation, skip_landmarks=True)
+        return image
+
     def do_display(self):
         compensate = 0
         n_results = 0
@@ -597,98 +702,29 @@ class Search:
             n_results = len(self.results)
         j = self.last_j + 1
         go_dir = 1
-        tried_j = -1
+        self.tried_j = -1
         while j < n_results:
             if j < 0:
                 j = 0
             if j - compensate >= self.offset + self.k:
                 break
             j = min(max(j, 0), n_results - 1)
-            result = self.results[j]
-            if self.search_mode is SearchMode.FACE and result[1] < self.face_threshold:
+            result, j, compensate = self.prepare_result(j, go_dir, compensate)
+            if j is None:
                 break
-            fix_idx = None
-            face_id = None
-            output = ""
-            self.last_j = j
-            if type(result[0]) is tuple:
-                face_id = result[0][1]
-                fix_idx = result[0][0]
-                tfn = database.get_fix_idx_filename(fix_idx)
-                vector = database.get_fix_idx_vector(fix_idx)
-                if self.last_vector is not None and np.array_equal(vector, self.last_vector) and self.search_mode is not SearchMode.NONE_NOSKIP and tried_j != j:
-                    tried_j = j
-                    j, compensate = go(j, go_dir, compensate)
-                    continue
-                self.last_vector = vector
-                output = f"{result[1]:.4f} {fix_idx} {face_id} {tfn}"
-            else:
-                fix_idx = result[0]
-                tfn = database.get_fix_idx_filename(fix_idx)
-                vector = database.get_fix_idx_vector(fix_idx)
-                if self.last_vector is not None and np.array_equal(vector, self.last_vector) and self.search_mode is not SearchMode.NONE_NOSKIP:
-                    j, compensate = go(j, go_dir, compensate)
-                    continue
-                self.last_vector = vector
-                output = f"{result[1]:.4f} {fix_idx} {tfn}"
-            if self.file_filter is not None:
-                if (re.search(self.file_filter, tfn) is None) == self.file_filter_mode:
-                    j, compensate = go(j, go_dir, compensate)
-                    continue
-            if self.skip_perfect and (result[1] > 0.999999 or config.has_tag(self.target_tag, fix_idx, face_id, self.cluster_mode)) and tried_j != j:
-                    tried_j = j
-                    j, compensate = go(j, go_dir, compensate)
-                    continue
-            tried_j = -1
-            annotations = None
-            if self.show_faces or self.target_tag is not None:
-                annotations = database.get_faces(database.i2b(fix_idx))
-                found_tag = False
-                for a_i, annotation in enumerate(annotations):
-                    annotation['tag'] = config.get_face_tag(annotation, self.face_threshold, self.cluster_mode)
-                    if face_id is not None and a_i == face_id and result[1] > 0.99999:
-                        annotation['color'] = (0, 255, 255)
-                    if self.target_tag is not None and (annotation['tag'] == self.target_tag or (self.cluster_mode and annotation['tag'] == "")):
-                        found_tag = True
-                if self.target_tag is not None and not found_tag:
-                    j, compensate = go(j, go_dir, compensate)
-                    continue
+            elif result is None:
+                continue
             try:
-                image = cv2.imread(tfn, cv2.IMREAD_COLOR)
-                if image is None or image.shape[0] < 2:
+                image = self.prepare_image(result)
+                if image is None:
                     j, compensate = go(j, go_dir, compensate)
                     continue
-                h, w, _ = image.shape
-                scale = 1.0
-                if self.max_res is not None:
-                    need_resize = False
-                    if w > self.max_res[0]:
-                        factor = float(self.max_res[0])/float(w)
-                        w = self.max_res[0]
-                        h *= factor
-                        need_resize = True
-                        scale *= factor
-                    if h > self.max_res[1]:
-                        factor = float(self.max_res[1])/float(h)
-                        h = self.max_res[1]
-                        w *= factor
-                        need_resize = True
-                        scale *= factor
-                    if need_resize:
-                        image = cv2.resize(image, (int(w + 0.5), int(h + 0.5)), interpolation=cv2.INTER_LANCZOS4)
-                if self.show_faces:
-                    pillow_image = Image.open(tfn)
-                    exif_data = pillow_image._getexif()
-                    exif_orientation = None
-                    if exif_data is not None and orientation in exif_data:
-                        exif_orientation = exif_data[orientation]
-                    image = annotate_faces(annotations, image=image, scale=scale, face_id=face_id, orientation=exif_orientation, skip_landmarks=True)
                 cv2.imshow('Image', image)
                 if self.align_window:
                     cv2.moveWindow('Image', 0, 0)
                 key = ""
                 do_break = False
-                print(output)
+                print(result.format_output())
                 while key != ord(" "):
                     key = cv2.waitKey(0) & 0xff
                     if key == ord('q'):
@@ -703,18 +739,19 @@ class Search:
                     elif key == ord('+'):
                         go_dir = 1
                         if self.target_tag is not None:
-                            result[1] = 1.0
-                            config.add_tag(self.target_tag, fix_idx, face_id, self.cluster_mode)
+                            result.result_elem[1] = 1.0
+                            config.add_tag(self.target_tag, result.fix_idx, result.face_id, self.cluster_mode)
                         break
                     elif key == ord('-'):
                         go_dir = 1
                         if self.target_tag is not None:
-                            result[1] = self.face_threshold + 0.00001
-                            config.del_tag(self.target_tag, fix_idx, face_id, self.cluster_mode)
+                            result.result_elem[1] = self.face_threshold + 0.00001
+                            config.del_tag(self.target_tag, result.fix_idx, result.face_id, self.cluster_mode)
                         break
                 if do_break:
                     break
-            except:
+            except Exception as ex:
+                print(f"Error displaying result image {j+1}/{n_results}: {ex}")
                 j, compensate = go(j, go_dir, compensate)
                 continue
             j = j + go_dir

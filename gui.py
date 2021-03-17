@@ -7,15 +7,22 @@ from io import StringIO
 import contextlib
 
 from PyQt5.QtCore import (
+    pyqtSignal,
     Qt,
+    QItemSelectionModel,
     QTimer,
+)
+from PyQt5.QtGui import (
+    QStandardItemModel, QStandardItem,
+    QImage, QPixmap,
 )
 from PyQt5.QtWidgets import (
     qApp,
     QApplication, QMainWindow, QWidget,
     QSizePolicy,
-    QHBoxLayout, QVBoxLayout,
+    QHBoxLayout, QVBoxLayout, QScrollBar, QTabWidget,
     QComboBox, QLabel, QPushButton, QTextEdit,
+    QTableView,
 )
 
 # Load delayed, so the GUI is already visible,
@@ -23,6 +30,8 @@ from PyQt5.QtWidgets import (
 query_index = None
 
 class HistoryComboBox(QComboBox):
+    pageChangeRequested = pyqtSignal(bool)
+
     def __init__(self, parent=None):
         super(HistoryComboBox, self).__init__(parent)
         self.isShowingPopup = False
@@ -58,38 +67,88 @@ class HistoryComboBox(QComboBox):
             self.showPopup()
             # Don't prevent default handling of the key press.
             super(HistoryComboBox, self).keyPressEvent(ev)
+        # On PageUp/Down, emit a signal
+        # (so this can control, e.g., scrolling of the console log).
+        elif key == Qt.Key_PageUp or key == Qt.Key_PageDown:
+            self.pageChangeRequested.emit(key == Qt.Key_PageUp)
+            # Don't prevent default handling of the key press.
+            super(HistoryComboBox, self).keyPressEvent(ev)
         # Otherwise, propagate key press further.
         else:
             super(HistoryComboBox, self).keyPressEvent(ev)
 
 class MainWindow(QMainWindow):
+    class OurTabPage(QWidget):
+        resized = pyqtSignal()
+        def __init__(self, parent=None):
+            super(MainWindow.OurTabPage, self).__init__(parent)
+        def resizeEvent(self, ev):
+            super(MainWindow.OurTabPage, self).resizeEvent(ev)
+            self.resized.emit()
+
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
 
         self.search = None
+        self.searchResultSelected = None
 
         # TODO: Take from config db.
         self.resize(1600, 900)
 
-        widget = QWidget(self)
-        vBox = QVBoxLayout(widget)
+        centralWidget = QWidget()
+        centralVBox = QVBoxLayout(centralWidget)
+
+        self.tabWidget = QTabWidget()
+
+
+        # Page 1: Console
+        self.consoleTabPage = QWidget()
+        consoleVBox = QVBoxLayout(self.consoleTabPage)
 
         self.infoLabel = QLabel(
             "ps-auxw says, \"CLI-P is commandline driven semantic image search using OpenAI's CLIP\"\n"
             "canvon says, \"This is a GUI for ps-auxw's CLI-P\"")
-        self.cvLabel = QLabel()
         self.searchOutput = QTextEdit()
         self.searchOutput.setReadOnly(True)
+
+        consoleVBox.addWidget(self.infoLabel)
+        consoleVBox.addWidget(self.searchOutput)
+        self.tabWidget.addTab(self.consoleTabPage, "&1 Console")
+
+
+        # Page 2: Images
+        self.imagesTabPage = self.OurTabPage()
+        self.imagesTabPage.resized.connect(self.imagesTabPageResized)
+        imagesVBox = QVBoxLayout(self.imagesTabPage)
+
+        self.imageLabel = QLabel()
+        self.imagesTableView = QTableView()
+        self.imagesTableView.setEditTriggers(QTableView.NoEditTriggers)
+        self.imagesTableView.activated.connect(self.searchResultsActivated)
+
+        imagesVBox.addWidget(self.imageLabel)
+        imagesVBox.addWidget(self.imagesTableView)
+        self.tabWidget.addTab(self.imagesTabPage, "&2 Images")
+
+
         self.searchHint = QLabel()
 
 
+        # Search input box & go button
         inputHBox = QHBoxLayout()
+
+        self.searchInputLabel = QLabel("&Search")
+        self.searchInputLabel.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
 
         self.searchInput = HistoryComboBox()
         self.searchInput.setEditable(True)
+        self.searchInput.pageChangeRequested.connect(self.searchInputPageChangeRequested)
+        #
         # This fired too often, but we only want to search
         # when the user finally hits return...
         #self.searchInput.activated.connect(self.handleSearchInput)
+        #
+        self.searchInputLabel.setBuddy(self.searchInput)
 
         self.searchInputButton = QPushButton()
         #
@@ -103,18 +162,54 @@ class MainWindow(QMainWindow):
         self.searchInputButton.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.searchInputButton.clicked.connect(self.handleSearchInput)
 
+        inputHBox.addWidget(self.searchInputLabel)
         inputHBox.addWidget(self.searchInput)
         inputHBox.addWidget(self.searchInputButton)
 
 
-        vBox.addWidget(self.infoLabel)
-        vBox.addWidget(self.cvLabel)
-        vBox.addWidget(self.searchOutput)
-        vBox.addWidget(self.searchHint)
-        vBox.addLayout(inputHBox)
+        centralVBox.addWidget(self.tabWidget)
+        centralVBox.addWidget(self.searchHint)
+        centralVBox.addLayout(inputHBox)
 
-        self.setCentralWidget(widget)
+        self.setCentralWidget(centralWidget)
         self.searchInput.setFocus()
+
+        self.createSearchResultsModel()
+
+    def imagesTabPageResized(self):
+        contents = self.imagesTabPage.contentsRect()
+        self.imageLabel.setMaximumSize(contents.width(), contents.height() * 8 / 10)  # 80%
+        self.imageLabel.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+
+    def searchInputPageChangeRequested(self, pageUp):
+        w = self.tabWidget.currentWidget()
+        if w is self.consoleTabPage:
+            # Scroll console log.
+            out = self.searchOutput
+            height = out.viewport().height()
+            # This didn't work:
+            #out.scrollContentsBy(0, height * (-1 if pageUp else 1))
+            # This worked, but doesn't provide overlap:
+            #out.verticalScrollBar().triggerAction(QScrollBar.SliderPageStepSub if pageUp else QScrollBar.SliderPageStepAdd)
+            # So we end up with this:
+            # (It scrolls by half the viewport height.)
+            vbar = out.verticalScrollBar()
+            vbar.setValue(vbar.value() + height * (-1 if pageUp else 1) / 2)
+        elif w is self.imagesTabPage:
+            # Scroll in & activate search results.
+            view = self.imagesTableView
+            model = view.model()
+            selectionModel = view.selectionModel()
+            index = selectionModel.currentIndex()
+            nextIndex = None
+            if not index.isValid():
+                nextIndex = model.index(0, 0)
+            else:
+                nextIndex = index.siblingAtRow(index.row() + (-1 if pageUp else 1))
+            if not nextIndex.isValid():
+                return
+            selectionModel.setCurrentIndex(nextIndex, QItemSelectionModel.SelectCurrent)
+            self.searchResultsActivated(nextIndex)
 
     def loadModules(self):
         global query_index
@@ -175,6 +270,7 @@ class MainWindow(QMainWindow):
         if storedText != inputText:
             self.searchInput.addItem(inputText)
         self.searchInput.clearEditText()
+        self.clearSearchResultsModel()
 
         iteration_done = self.stdoutSearchOutput(search.do_command)
         if iteration_done:
@@ -184,7 +280,82 @@ class MainWindow(QMainWindow):
             return
 
         self.stdoutSearchOutput(search.do_search)
-        self.stdoutSearchOutput(search.do_display)
+        n_results = 0 if search.results is None else len(search.results)
+        if not n_results > 0:
+            self.appendSearchOutput("No results.")
+            return
+        #self.stdoutSearchOutput(search.do_display)
+        self.appendSearchOutput(f"Building results model for {n_results} results...")
+        j = 0
+        while j < n_results:
+            result, j, _ = search.prepare_result(j)
+            if j is None:
+                break
+            elif result is None:
+                continue
+            self.appendToSearchResultsModel(result)
+        self.appendSearchOutput(f"Built results model with {self.searchResultsModel.rowCount()} entries.")
+
+        # Already activate Images tab and load first image...
+        self.tabWidget.setCurrentWidget(self.imagesTabPage)
+        view = self.imagesTableView
+        nextIndex = view.model().index(0, 0)
+        if nextIndex.isValid():
+            view.selectionModel().setCurrentIndex(nextIndex, QItemSelectionModel.SelectCurrent)
+            self.searchResultsActivated(nextIndex)
+
+    def createSearchResultsModel(self):
+        model = QStandardItemModel(0, 4)
+        model.setHorizontalHeaderLabels(["score", "fix_idx", "face_id", "filename"])
+        self.searchResultsModel = model
+        self.imagesTableView.setModel(model)
+        self.imagesTableView.horizontalHeader().setStretchLastSection(True)
+
+    def clearSearchResultsModel(self):
+        self.searchResultSelected = None
+        #
+        # Don't use clear(), as that will get rid of the header labels
+        # and column count, too...
+        #self.searchResultsModel.clear()
+        self.searchResultsModel.setRowCount(0)
+        #
+        self.imageLabel.clear()
+
+    def appendToSearchResultsModel(self, result):
+        model = self.searchResultsModel
+        scoreItem  = QStandardItem(str(result.score))
+        fixIdxItem = QStandardItem(str(result.fix_idx))
+        faceIdItem = QStandardItem(str(result.face_id))
+        tfnItem    = QStandardItem(str(result.tfn))
+        items = [scoreItem, fixIdxItem, faceIdItem, tfnItem]
+        for item in items:
+            item.setData(result)
+        model.appendRow(items)
+
+    def searchResultsActivated(self, index):
+        result = index.data(Qt.UserRole + 1)
+        self.showSearchResult(result)
+
+    def showSearchResult(self, result):
+        if self.searchResultSelected is result:
+            return
+        self.searchResultSelected = result
+        if result is None:
+            return
+        self.appendSearchOutput(result.format_output())
+        # Prepare image.
+        try:
+            size = self.imageLabel.maximumSize()
+            max_res = (size.width(), size.height())
+            image = self.search.prepare_image(result, max_res)
+            if image is None:
+                raise RuntimeError("No image.")
+        except Exception as ex:
+            self.appendSearchOutput(f"Error preparing image: {ex}")
+            return
+        # Convert prepared image to Qt/GUI.
+        qtImage = QImage(image.data, image.shape[1], image.shape[0], 3 * image.shape[1], QImage.Format_RGB888).rgbSwapped()
+        self.imageLabel.setPixmap(QPixmap.fromImage(qtImage))
 
 
 if __name__ == '__main__':
