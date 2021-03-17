@@ -219,7 +219,7 @@ class Search:
                     raise Exception
                 self.growth_limit = limit
                 config.set_setting_float("growth_limit", self.growth_limit)
-                print(f"Set search growth limit to {growth_limit}.")
+                print(f"Set search growth limit to {self.growth_limit}.")
             except:
                 print("Invalid search growth limit.")
             return True
@@ -230,7 +230,7 @@ class Search:
                     raise Exception
                 self.clip_threshold = threshold
                 config.set_setting_float("clip_threshold", self.clip_threshold)
-                print(f"Set CLIP similarity threshold to {clip_threshold}.")
+                print(f"Set CLIP similarity threshold to {self.clip_threshold}.")
             except:
                 print("Invalid CLIP threshold value.")
             return True
@@ -241,7 +241,7 @@ class Search:
                     raise Exception
                 self.face_threshold = threshold
                 config.set_setting_float("face_threshold", self.face_threshold)
-                print(f"Set face similarity threshold to {face_threshold}.")
+                print(f"Set face similarity threshold to {self.face_threshold}.")
             except:
                 print("Invalid face threshold value.")
             return True
@@ -253,7 +253,7 @@ class Search:
                 self.index.nprobe = probe
                 self.faces_index.nprobe = probe
                 config.set_setting_int("probe", probe)
-                print(f"Set to probe {probe} subsets.")
+                print(f"Set to probe {self.probe} subsets.")
             except:
                 print("Invalid probe value.")
             return True
