@@ -61,6 +61,14 @@ For a nicer image viewing experience, try:
     things up, but running a single instance of it afterwards should
     fix them back up.
 
+## Testing
+
+There's a (currently very incomplete, but) emerging test suite
+which you can call via: `python -m unittest discover tests`
+
+That is, invoke the Python `unittest` module's `discover` sub-command
+on the `tests` directory.
+
 ## Credits
 
 By ps-auxw. OO/GUI work by canvon.
