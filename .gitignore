@@ -11,3 +11,6 @@
 # Build results
 # Anywhere:
 __pycache__/
+
+# Several IDEs per-user files
+.eric6project/
