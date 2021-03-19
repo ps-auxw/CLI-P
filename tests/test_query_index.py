@@ -4,11 +4,13 @@ from io import StringIO
 
 class TestQueryIndex(unittest.TestCase):
 
-    def setUp(self):
-        self.query_index = __import__("query-index")
-        self.search = self.query_index.Search()
+    @classmethod
+    def setUpClass(cls):
+        cls.query_index = __import__("query-index")
+        cls.search = cls.query_index.Search()
 
-    def tearDown(self):
+    @classmethod
+    def tearDownClass(cls):
         pass
 
     @classmethod
