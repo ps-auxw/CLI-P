@@ -93,7 +93,8 @@
       "config.py",
       "build-index.py",
       "tests/test_query_index.py",
-      "query-index.py"
+      "query-index.py",
+      "tests/__init__.py"
     ],
     "SPELLEXCLUDES": "",
     "SPELLLANGUAGE": "en_US",
