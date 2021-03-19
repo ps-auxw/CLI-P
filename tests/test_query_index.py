@@ -66,9 +66,18 @@ class TestQueryIndex(unittest.TestCase):
         else:
             self.assertIsNone(stored_value, msg="Command updated Search object although it shouldn't have. => " + msg_suffix)
 
+    def wrap_command_field_reset(self, command_name, field_name, code):
+        prev_value = getattr(self.search, field_name)
+        try:
+            code(command_name, field_name)
+        finally:
+            setattr(self.search, field_name, prev_value)
+
     def test_command_q(self):
-        self.verify_command_behaviour_setfield("q", "running_cli", False, True,
-            expect_singleline_structure=None, interpolate_value=False)
+        self.wrap_command_field_reset("q", "running_cli", lambda command_name, field_name:
+            self.verify_command_behaviour_setfield(command_name, field_name, False, True,
+                expect_singleline_structure=None, interpolate_value=False)
+        )
 
     def test_command_ft(self):
         values = [
@@ -76,9 +85,11 @@ class TestQueryIndex(unittest.TestCase):
             (1.1, False), (-0.1, False),
         ]
         for v in values:
-            self.verify_command_behaviour_setfield("ft", "face_threshold", v[0],  v[1],
-                success_msg_prefix="Set face similarity threshold",
-                fail_msg_prefix="Invalid face threshold")
+            self.wrap_command_field_reset("ft", "face_threshold", lambda command_name, field_name:
+                self.verify_command_behaviour_setfield(command_name, field_name, v[0],  v[1],
+                    success_msg_prefix="Set face similarity threshold",
+                    fail_msg_prefix="Invalid face threshold")
+            )
 
 if __name__ == '__main__':
     unittest.main()
