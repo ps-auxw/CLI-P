@@ -37,10 +37,11 @@ class TestQueryIndex(unittest.TestCase):
 
     def verify_command_behaviour_setfield(self, command_name, field_name,
         value, expect_success, success_msg_prefix=None, fail_msg_prefix=None,
-        expect_iterationDone=True, expect_singleline_structure=True):
+        expect_iterationDone=True, expect_singleline_structure=True,
+        interpolate_value=True):
         search = self.search
         setattr(search, field_name, None)
-        search.in_text = f"{command_name} {value}"
+        search.in_text = f"{command_name} {value}" if interpolate_value else command_name
         msg_suffix = f"failed at command {command_name!r} data point {value} expect {'success' if expect_success else 'fail'}"
 
         output, iterationDone = self.capture_stdout(search.do_command)
@@ -64,6 +65,10 @@ class TestQueryIndex(unittest.TestCase):
             self.assertEqual(value, stored_value, msg="Command didn't update Search object to data point value. => " + msg_suffix)
         else:
             self.assertIsNone(stored_value, msg="Command updated Search object although it shouldn't have. => " + msg_suffix)
+
+    def test_command_q(self):
+        self.verify_command_behaviour_setfield("q", "running_cli", False, True,
+            expect_singleline_structure=None, interpolate_value=False)
 
     def test_command_ft(self):
         values = [
