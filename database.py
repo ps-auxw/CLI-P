@@ -169,7 +169,8 @@ class DB:
             face_key = idx + b'f' + face_idx
             logger.debug("DB %#x: get_face(idx=%r, face_idx=%r) -> face_key=%r", id(self), idx, face_idx, face_key)
             raw_face = txn.get(face_key)
-            logger.debug("DB %#x: ... raw_face=%r", id(self), raw_face)
+            logger.debug("DB %#x: ... raw_face=%s", id(self),
+                ('None' if raw_face is None else repr(raw_face[:16]) + '[...]'))
             annotation = self.decode_face(raw_face)
             annotation['face_key'] = face_key
             return annotation
