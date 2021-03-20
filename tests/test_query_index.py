@@ -7,7 +7,12 @@ class TestQueryIndex(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.query_index = __import__("query-index")
-        cls.search = cls.query_index.Search()
+
+    def setUp(self):
+        self.search = self.query_index.Search()
+
+    def tearDown(self):
+        pass
 
     @classmethod
     def tearDownClass(cls):
