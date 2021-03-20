@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 import weakref
 import atexit
@@ -10,6 +11,8 @@ from numpack import *
 from db_config import config_map_size
 import database
 
+logger = logging.getLogger(__name__)
+
 by_path_prefix = weakref.WeakValueDictionary()
 
 class ConfigDB:
@@ -18,6 +21,7 @@ class ConfigDB:
             path_prefix = Path('.')
         self.path_prefix = path_prefix
         by_path_prefix[str(self.path_prefix)] = self
+        logger.debug("ConfigDB %#x: Instantiating ConfigDB(path_prefix=%r)", id(self), self.path_prefix)
 
         # LMDB environment
         self.env = None
@@ -41,6 +45,7 @@ class ConfigDB:
     # Open database
     def open_db(self):
         self.path = self.path_prefix / 'config.lmdb'
+        logger.info("ConfigDB %#x: Opening DB at: %s", id(self), self.path)
         self.env = lmdb.open(str(self.path), map_size=config_map_size, max_dbs=4)
         weakref.finalize(self, self.close)
 
@@ -52,6 +57,7 @@ class ConfigDB:
 
     def close(self):
         if self.env is not None:
+            logger.debug("ConfigDB %#x: Closing DB", id(self))
             self.env.close()
             self.env = None
 
@@ -66,6 +72,7 @@ class ConfigDB:
         return rel_db
 
     def load_tags(self):
+        logger.debug("ConfigDB %#x: Loading tags...", id(self))
         self.index = faiss.IndexFlatIP(512)
         self.cluster_map = {}
         self.tag_map = {}
@@ -77,6 +84,7 @@ class ConfigDB:
             if cursor.first():
                 for name, _ in cursor:
                     tag_name = name.decode()
+                    logger.debug("ConfigDB %#x: Loading tag %r", id(self), tag_name)
                     self.tag_map[tag_name] = []
                     tag_cursor = txn.cursor(self.tags_db)
                     if tag_cursor.set_key(name):

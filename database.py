@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 import weakref
 import atexit
@@ -8,6 +9,8 @@ import struct
 from numpack import s2b, b2s
 from db_config import vectors_map_size
 
+logger = logging.getLogger(__name__)
+
 by_path_prefix = weakref.WeakValueDictionary()
 
 class DB:
@@ -16,6 +19,7 @@ class DB:
             path_prefix = Path('.')
         self.path_prefix = path_prefix
         by_path_prefix[str(self.path_prefix)] = self
+        logger.debug("DB %#x: Instantiating DB(path_prefix=%r)", id(self), self.path_prefix)
 
         # LMDB environment
         self.env = None
@@ -40,6 +44,7 @@ class DB:
 
     def open_db(self, pack_type='<Q'):
         self.path = self.path_prefix / 'vectors.lmdb'
+        logger.info("DB %#x: Opening DB at: %s", id(self), self.path)
         self.env = lmdb.open(str(self.path), map_size=vectors_map_size, max_dbs=5)
         weakref.finalize(self, self.close)
 
@@ -62,6 +67,7 @@ class DB:
 
     def close(self):
         if self.env is not None:
+            logger.debug("DB %#x: Closing DB", id(self))
             self.env.close()
             self.env = None
 
@@ -159,7 +165,9 @@ class DB:
     def get_face(self, idx, face_idx):
         with self.env.begin(db=self.fix_idx_db) as txn:
             face_key = idx + b'f' + face_idx
+            logger.debug("DB %#x: get_face(idx=%r, face_idx=%r) -> face_key=%r", id(self), idx, face_idx, face_key)
             raw_face = txn.get(face_key)
+            logger.debug("DB %#x: ... raw_face=%r", id(self), raw_face)
             annotation = self.decode_face(raw_face)
             annotation['face_key'] = face_key
             return annotation
