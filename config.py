@@ -403,6 +403,9 @@ def __getattr__(name):
     if name not in default_attr_keys and name not in default_def_keys:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")  # Faking default error message...
     if default_config_db is None:
+        # query-index.py uses this to check before opening the DB...
+        if name == "env":
+            return None
         raise AttributeError(f"module {__name__!r} default ConfigDB not opened, yet")
     #
     # (This doesn't seem to be necessary, as getattr() doesn't expose
