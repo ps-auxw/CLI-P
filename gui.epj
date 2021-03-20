@@ -94,7 +94,8 @@
       "build-index.py",
       "tests/test_query_index.py",
       "query-index.py",
-      "tests/__init__.py"
+      "tests/__init__.py",
+      "models_store.py"
     ],
     "SPELLEXCLUDES": "",
     "SPELLLANGUAGE": "en_US",
