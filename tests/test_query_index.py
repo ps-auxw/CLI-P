@@ -85,5 +85,14 @@ class TestQueryIndex(unittest.TestCase):
                 success_msg_prefix="Set face similarity threshold",
                 fail_msg_prefix="Invalid face threshold")
 
+    def test_command_h(self):
+        search = self.search
+        search.in_text = "h"
+        output, iterationDone = self.capture_stdout(search.do_command)
+        self.assertTrue(iterationDone, msg="Command didn't request 'no search'.")
+        self.assertTrue(output.count("\n") >= 3, msg="Command didn't give multi-line output message.")
+        self.assertTrue("Enter a search query" in output, msg="Command missing basic help string.")
+        self.assertTrue("h\t\tShow this help" in output, msg="Command missing self-referential help string.")
+
 if __name__ == '__main__':
     unittest.main()
