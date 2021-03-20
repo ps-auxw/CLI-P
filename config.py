@@ -191,7 +191,7 @@ class ConfigDB:
     def get_unnamed_cluster_contents(self, cluster_id):
         with self.env.begin(db=self.cluster_db) as txn:
             cursor = txn.cursor()
-            cluster_key = b'c' + self.reated_database().i2b(cluster_id)
+            cluster_key = b'c' + self.related_database().i2b(cluster_id)
             if not cursor.set_key(cluster_key):
                 return None
             results = []
@@ -221,7 +221,7 @@ class ConfigDB:
             if cursor.first():
                 for name, _ in cursor:
                     tag_name = name.decode()
-                    tag_cursor = txn.cursor(tags_db)
+                    tag_cursor = txn.cursor(self.tags_db)
                     tag_num = 0
                     if tag_cursor.set_key(name):
                         tag_num = tag_cursor.count()
@@ -246,7 +246,7 @@ class ConfigDB:
                     txn.put(key, value)
                     if name not in self.tag_map:
                         self.tag_map[name] = []
-                    self.tag_map[name].append((self.related_database().i2b(fix_idx), face_key, len(self.tag_list), embedding.reshape((512,))))
+                    self.tag_map[name].append((rel_db.i2b(fix_idx), face_key, len(self.tag_list), embedding.reshape((512,))))
                     if not fix_idx in self.image_map:
                         self.image_map[fix_idx] = {}
                     if annotation_key not in self.image_map:
