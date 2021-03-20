@@ -17,6 +17,8 @@ class DB:
     def __init__(self, path_prefix=None):
         if path_prefix is None:
             path_prefix = Path('.')
+        elif type(path_prefix) is str:
+            path_prefix = Path(path_prefix)
         self.path_prefix = path_prefix
         by_path_prefix[str(self.path_prefix)] = self
         logger.debug("DB %#x: Instantiating DB(path_prefix=%r)", id(self), self.path_prefix)
