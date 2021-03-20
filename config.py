@@ -67,6 +67,7 @@ class ConfigDB:
                                 break
                             fix_idx = database.i2b(b2i(tag_data))
                             face_idx = tag_data[8:10]
+                            # FIXME: Use database instance that matches our path_prefix!
                             annotation = database.get_face(fix_idx, face_idx)
                             embedding = annotation['embedding'].reshape((512,)).astype('float32')
                             self.tag_map[tag_name].append((fix_idx, face_idx, len(self.tag_list), embedding))
@@ -219,6 +220,7 @@ class ConfigDB:
                 cursor = txn.cursor()
                 annotation_key = database.i2b(fix_idx)
                 face_key = s2b(face_idx)
+                # FIXME: Use database instance that matches our path_prefix!
                 embedding = database.get_face(annotation_key, face_key)['embedding'].reshape((1, 512)).astype('float32')
                 key = name.encode()
                 value = i2b(fix_idx) + face_key
@@ -297,6 +299,7 @@ class ConfigDB:
             for cluster_item in cluster_items:
                 fix_idx = database.i2b(cluster_item[0][0])
                 face_id = s2b(cluster_item[0][1])
+                # FIXME: Use database instance that matches our path_prefix!
                 embeddings.append(database.get_face(fix_idx, face_id)['embedding'].reshape((512,)))
             return np.array(embeddings)
         if name not in self.tag_map or len(self.tag_map[name]) < 1:
