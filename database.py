@@ -1,4 +1,5 @@
 from pathlib import Path
+import weakref
 import atexit
 import lmdb
 import numpy as np
@@ -7,11 +8,14 @@ import struct
 from numpack import s2b, b2s
 from db_config import vectors_map_size
 
+by_path_prefix = weakref.WeakValueDictionary()
+
 class DB:
     def __init__(self, path_prefix=None):
         if path_prefix is None:
             path_prefix = Path('.')
         self.path_prefix = path_prefix
+        by_path_prefix[str(self.path_prefix)] = self
 
         # LMDB environment
         self.env = None
@@ -37,6 +41,7 @@ class DB:
     def open_db(self, pack_type='<Q'):
         self.path = self.path_prefix / 'vectors.lmdb'
         self.env = lmdb.open(str(self.path), map_size=vectors_map_size, max_dbs=5)
+        weakref.finalize(self, self.close)
 
         self.fn_db = self.env.open_db(b'fn_db')
         self.skip_db = self.env.open_db(b'skip_db')
@@ -56,7 +61,9 @@ class DB:
                 txn.put(b'next', self.i2b(0))
 
     def close(self):
-        self.env.close()
+        if self.env is not None:
+            self.env.close()
+            self.env = None
 
     def key_len(self):
         l = 8

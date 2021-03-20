@@ -1,4 +1,5 @@
 from pathlib import Path
+import weakref
 import atexit
 import lmdb
 import numpy as np
@@ -9,11 +10,14 @@ from numpack import *
 from db_config import config_map_size
 import database
 
+by_path_prefix = weakref.WeakValueDictionary()
+
 class ConfigDB:
     def __init__(self, path_prefix=None):
         if path_prefix is None:
             path_prefix = Path('.')
         self.path_prefix = path_prefix
+        by_path_prefix[str(self.path_prefix)] = self
 
         # LMDB environment
         self.env = None
@@ -38,6 +42,8 @@ class ConfigDB:
     def open_db(self):
         self.path = self.path_prefix / 'config.lmdb'
         self.env = lmdb.open(str(self.path), map_size=config_map_size, max_dbs=4)
+        weakref.finalize(self, self.close)
+
         self.tag_name_db = self.env.open_db(b'tag_name_db')
         self.tags_db = self.env.open_db(b'tags_db', dupsort=True)
         self.settings_db = self.env.open_db(b'settings_db')
@@ -45,7 +51,19 @@ class ConfigDB:
         self.load_tags()
 
     def close(self):
-        self.env.close()
+        if self.env is not None:
+            self.env.close()
+            self.env = None
+
+    def related_database(self):
+        path_prefix = str(self.path_prefix)
+        try:
+            rel_db = database.by_path_prefix[path_prefix]
+            if rel_db is None:
+                raise RuntimeError(f"ConfigDB(path_prefix={path_prefix!r}) can't access related main DB anymore")
+        except KeyError as ex:
+            raise RuntimeError(f"ConfigDB(path_prefix={path_prefix!r}) can't access related main DB") from ex
+        return rel_db
 
     def load_tags(self):
         self.index = faiss.IndexFlatIP(512)
@@ -65,10 +83,10 @@ class ConfigDB:
                         for name_key, tag_data in tag_cursor:
                             if name_key != name:
                                 break
-                            fix_idx = database.i2b(b2i(tag_data))
+                            rel_db = self.related_database()
+                            fix_idx = rel_db.i2b(b2i(tag_data))
                             face_idx = tag_data[8:10]
-                            # FIXME: Use database instance that matches our path_prefix!
-                            annotation = database.get_face(fix_idx, face_idx)
+                            annotation = rel_db.get_face(fix_idx, face_idx)
                             embedding = annotation['embedding'].reshape((512,)).astype('float32')
                             self.tag_map[tag_name].append((fix_idx, face_idx, len(self.tag_list), embedding))
                             if not fix_idx in self.image_map:
@@ -84,7 +102,7 @@ class ConfigDB:
 
     # Cluster functions
     def add_cluster_tag(self, name, fix_idx, face_idx):
-        face_key = database.i2b(fix_idx) + b'f' + s2b(face_idx)
+        face_key = self.related_database().i2b(fix_idx) + b'f' + s2b(face_idx)
         cluster_key = b'm' + name.encode()
         with self.env.begin(db=self.cluster_db) as txn:
             cursor = txn.cursor()
@@ -118,7 +136,7 @@ class ConfigDB:
         return False
 
     def del_cluster_tag(self, name, fix_idx, face_idx, prevent_recluster=False):
-        face_key = database.i2b(fix_idx) + b'f' + s2b(face_idx)
+        face_key = self.related_database().i2b(fix_idx) + b'f' + s2b(face_idx)
         cluster_key = b'm' + name.encode()
         with self.env.begin(db=self.cluster_db) as txn:
             cursor = txn.cursor()
@@ -138,7 +156,7 @@ class ConfigDB:
         return True
 
     def purge_cluster_tag(self, name, fix_idx, face_idx, prevent_recluster):
-        face_key = database.i2b(fix_idx) + b'f' + s2b(face_idx)
+        face_key = self.related_database().i2b(fix_idx) + b'f' + s2b(face_idx)
         cluster_key = b'm' + name.encode()
         with self.env.begin(db=self.cluster_db) as txn:
             target = txn.get(b'f' + face_key + b'o')
@@ -151,7 +169,7 @@ class ConfigDB:
                     break
                 res = txn.get(b'f' + value + b'o')
                 if res == target:
-                    self.del_cluster_tag(name, database.b2i(value), b2s(value[-2:]), prevent_recluster)
+                    self.del_cluster_tag(name, self.related_database().b2i(value), b2s(value[-2:]), prevent_recluster)
             return True
 
     def list_unnamed_clusters(self):
@@ -165,7 +183,7 @@ class ConfigDB:
                         break
                     c_count = cursor.count()
                     if c_count > 1:
-                        clusters.append((database.b2i(item[0][1:]), c_count))
+                        clusters.append((self.related_database().b2i(item[0][1:]), c_count))
                     if not cursor.next_nodup():
                         break
         return sorted(clusters, key=lambda x: x[0])
@@ -173,14 +191,14 @@ class ConfigDB:
     def get_unnamed_cluster_contents(self, cluster_id):
         with self.env.begin(db=self.cluster_db) as txn:
             cursor = txn.cursor()
-            cluster_key = b'c' + database.i2b(cluster_id)
+            cluster_key = b'c' + self.reated_database().i2b(cluster_id)
             if not cursor.set_key(cluster_key):
                 return None
             results = []
             for iter_key, value in cursor:
                 if iter_key != cluster_key:
                     break
-                results.append([(database.b2i(value), b2s(value[-2:])), 1.0])
+                results.append([(self.related_database().b2i(value), b2s(value[-2:])), 1.0])
             return results
 
     # Tag index functions
@@ -218,17 +236,17 @@ class ConfigDB:
                 return self.add_cluster_tag(name, fix_idx, face_idx)
             with self.env.begin(db=self.tags_db, write=True) as txn:
                 cursor = txn.cursor()
-                annotation_key = database.i2b(fix_idx)
+                rel_db = self.related_database()
+                annotation_key = rel_db.i2b(fix_idx)
                 face_key = s2b(face_idx)
-                # FIXME: Use database instance that matches our path_prefix!
-                embedding = database.get_face(annotation_key, face_key)['embedding'].reshape((1, 512)).astype('float32')
+                embedding = rel_db.get_face(annotation_key, face_key)['embedding'].reshape((1, 512)).astype('float32')
                 key = name.encode()
                 value = i2b(fix_idx) + face_key
                 if not cursor.set_key_dup(key, value):
                     txn.put(key, value)
                     if name not in self.tag_map:
                         self.tag_map[name] = []
-                    self.tag_map[name].append((database.i2b(fix_idx), face_key, len(self.tag_list), embedding.reshape((512,))))
+                    self.tag_map[name].append((self.related_database().i2b(fix_idx), face_key, len(self.tag_list), embedding.reshape((512,))))
                     if not fix_idx in self.image_map:
                         self.image_map[fix_idx] = {}
                     if annotation_key not in self.image_map:
@@ -245,7 +263,7 @@ class ConfigDB:
             return False
 
     def has_tag(self, name, fix_idx, face_id, cluster_mode):
-        fix_idx = database.i2b(fix_idx)
+        fix_idx = self.related_database().i2b(fix_idx)
         if cluster_mode:
             if face_id is None: 
                 return False
@@ -281,13 +299,13 @@ class ConfigDB:
                 for iter_key, value in cursor:
                     if iter_key != cluster_key:
                         break
-                    results.append([(database.b2i(value), b2s(value[-2:])), 1.0])
+                    results.append([(self.related_database().b2i(value), b2s(value[-2:])), 1.0])
                 return results
         if name not in self.tag_map:
             return None
         results = []
         for fix_idx, face_idx, _, _ in self.tag_map[name]:
-            results.append([(database.b2i(fix_idx), b2s(face_idx)), 1.0])
+            results.append([(self.related_database().b2i(fix_idx), b2s(face_idx)), 1.0])
         return results
 
     def get_tag_embeddings(self, name, cluster_mode):
@@ -296,11 +314,11 @@ class ConfigDB:
             if cluster_items is None:
                 return None
             embeddings = []
+            rel_db = self.related_database()
             for cluster_item in cluster_items:
-                fix_idx = database.i2b(cluster_item[0][0])
+                fix_idx = rel_db.i2b(cluster_item[0][0])
                 face_id = s2b(cluster_item[0][1])
-                # FIXME: Use database instance that matches our path_prefix!
-                embeddings.append(database.get_face(fix_idx, face_id)['embedding'].reshape((512,)))
+                embeddings.append(rel_db.get_face(fix_idx, face_id)['embedding'].reshape((512,)))
             return np.array(embeddings)
         if name not in self.tag_map or len(self.tag_map[name]) < 1:
             return None
