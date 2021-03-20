@@ -4,14 +4,19 @@ of all the AI models used throughout the code base.
 """
 
 import gc
+from torch_device import device as default_device
 
 class LazyModel:
     def __init__(self, name: str, loading_code):
         self.loaded_model = None
+        self.loaded_device = None
+        self.loading_device = default_device
         self.name = name
         self.loading_code = loading_code
     def load(self):
-        self.loaded_model = self.loading_code()
+        device = self.loading_device
+        self.loaded_model = self.loading_code(device)
+        self.loaded_device = device
     def unload(self):
         self.loaded_model = None
         gc.collect()
@@ -52,6 +57,16 @@ class Store:
         if name not in self.models:
             raise KeyError(f"Model name {name!r} not registered")
         return self.models[name]
+
+    def register_lazy_or_getitem(self, name: str, loading_code):
+        if name in self.models:
+            return self.__getitem__(name)
+        return self.register_lazy(name, loading_code)
+    def register_eager_or_getitem(self, name: str, loading_code):
+        if name in self.models:
+            return self.__getitem__(name)
+        return self.register_eager(name, loading_code)
+
     def __str__(self):
         t = type(self)
         ms = []

@@ -6,7 +6,7 @@ import re
 import enum
 import numpy as np
 import lmdb
-import torch_device
+import models_store  # (imports torch_device)
 import torch
 import clip
 import faiss
@@ -16,6 +16,12 @@ import cv2
 import config
 import database
 from faces import annotate as annotate_faces
+
+CLIP_MODEL_KEY = "clip"
+store_clip_model = models_store.store.register_lazy_or_getitem(CLIP_MODEL_KEY,
+    lambda device: clip.load("ViT-B/32", device=device, jit=False))
+if not store_clip_model.is_loaded():
+    store_clip_model.loading_device = "cpu"
 
 def go(j, go_dir, compensate):
     if go_dir == 0:
@@ -76,13 +82,9 @@ class SearchMode(enum.IntEnum):
 
 class Search:
 
-    def __init__(self, device=None):
-        if device == None:
-            #device = "cuda" if torch.cuda.is_available() else "cpu"
-            device = "cpu"
-        self.device = device
-
-        self.model, _ = clip.load("ViT-B/32", device=device, jit=False)
+    def __init__(self):
+        self.model, _ = store_clip_model.get()
+        self.device = store_clip_model.loaded_device
 
         self.model.eval()
 
