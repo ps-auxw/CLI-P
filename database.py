@@ -62,7 +62,7 @@ class DB:
             if res is None:
                 txn.put(b'int_type', pack_type.encode('utf-8', 'surrogateescape'))
             else:
-                int_type = res.decode()
+                self.int_type = res.decode()
             res = txn.get(b'next')
             if res is None:
                 txn.put(b'next', self.i2b(0))
