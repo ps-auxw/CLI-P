@@ -88,8 +88,10 @@ class Search:
 
         self.model.eval()
 
-        database.open_db()
-        config.open_db()
+        if database.env is None:
+            database.open_db()
+        if config.env is None:
+            config.open_db()
 
         self.index = faiss.read_index("images.index")
         self.index.nprobe = config.get_setting_int("probe", 64)
