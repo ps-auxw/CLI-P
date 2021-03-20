@@ -168,7 +168,6 @@ def put_fn(filename, vector):
     fn_hash = sha256(fn)
     vector = vector.reshape((1,512)).astype('float32').tobytes()
     idx = None
-    added = False
     with env.begin(db=fn_db) as txn:
         idx = txn.get(fn_hash)
     with env.begin(db=fix_idx_db, write=True) as txn:

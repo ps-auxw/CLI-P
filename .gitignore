@@ -3,6 +3,7 @@
 /*.lmdb/
 /*.index
 /cli-p.conf
+/.vscode
 
 # Python virtual environment
 # Anchored at top-level:

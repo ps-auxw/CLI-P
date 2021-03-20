@@ -82,7 +82,7 @@ class Search:
             device = "cpu"
         self.device = device
 
-        self.model, transform = clip.load("ViT-B/32", device=device, jit=False)
+        self.model, _ = clip.load("ViT-B/32", device=device, jit=False)
 
         self.model.eval()
 
@@ -253,7 +253,7 @@ class Search:
                 self.index.nprobe = probe
                 self.faces_index.nprobe = probe
                 config.set_setting_int("probe", probe)
-                print(f"Set to probe {self.probe} subsets.")
+                print(f"Set to probe {probe} subsets.")
             except:
                 print("Invalid probe value.")
             return True
@@ -427,7 +427,7 @@ class Search:
                 self.last_j = -1
                 print(f"Showing tag {tag}:")
                 print(f"Image\tFace")
-                for result, score in self.results:
+                for result, _ in self.results:
                     print(f"{result[0]}\t{result[1]}")
                 self.search_mode = SearchMode.NONE_NOSKIP
                 self.target_tag = tag
@@ -442,7 +442,6 @@ class Search:
                 self.last_j = -1
                 try:
                     filename = database.get_fix_idx_filename(image_id)
-                    features = database.get_fix_idx_vector(image_id)
                     annotations = database.get_faces(database.i2b(image_id))
                     print(f"Showing {filename}:")
                     print(f"Image\tFace\tTag\tBounding box")
