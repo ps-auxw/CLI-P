@@ -79,7 +79,7 @@ class TestQueryIndex(unittest.TestCase):
         search = self.search
         prev_value = search.face_threshold
         values = [
-            (1.0, True), (0.5, True), (0.0, True),
+            (1.0, True), (0.6, True), (0.5, True), (0.0, True),
             (1.1, False), (-0.1, False),
         ]
         for value, expect_success in values:

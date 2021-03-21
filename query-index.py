@@ -105,7 +105,7 @@ class Search:
         self.features = None
         self.show_faces = config.get_setting_bool("show_faces", False)
         self.show_prefix = config.get_setting_bool("show_prefix", True)
-        self.face_threshold = config.get_setting_float("face_threshold", 0.60)
+        self.face_threshold = round(config.get_setting_float("face_threshold", 0.60), 4)  # round(): Make test suite pass.
         self.clip_threshold = config.get_setting_float("clip_threshold", 0.19)
         self.k = config.get_setting_int("k", 50)
         self.offset = 0
