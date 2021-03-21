@@ -238,16 +238,20 @@ class Search:
             except:
                 print("Invalid CLIP threshold value.")
             return True
-        elif self.in_text.startswith('ft '):
-            try:
-                threshold = float(self.in_text[3:])
-                if threshold < 0.0 or threshold > 1.0:
-                    raise Exception
-                self.face_threshold = threshold
-                config.set_setting_float("face_threshold", self.face_threshold)
-                print(f"Set face similarity threshold to {self.face_threshold}.")
-            except:
-                print("Invalid face threshold value.")
+        elif self.in_text == 'ft' or self.in_text.startswith('ft '):
+            rest = self.in_text[3:]
+            if rest == '' or rest == 'show':
+                print(f"Face similarity threshold is {self.face_threshold}.")
+            else:
+                try:
+                    threshold = float(rest)
+                    if threshold < 0.0 or threshold > 1.0:
+                        raise Exception
+                    self.face_threshold = threshold
+                    config.set_setting_float("face_threshold", self.face_threshold)
+                    print(f"Set face similarity threshold to {self.face_threshold}.")
+                except:
+                    print("Invalid face threshold value.")
             return True
         elif self.in_text.startswith('p '):
             try:

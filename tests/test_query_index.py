@@ -84,6 +84,16 @@ class TestQueryIndex(unittest.TestCase):
             self.verify_command_behaviour_setfield("ft", "face_threshold", v[0],  v[1],
                 success_msg_prefix="Set face similarity threshold",
                 fail_msg_prefix="Invalid face threshold")
+        # Check "show value" as well.
+        search = self.search
+        last_value = [v for v in filter(lambda v: v[1], values)][-1]  # Last to-be-successfully-set value.
+        search.face_threshold = last_value  # Oh well... Necessary as negative tests reset the field to None!
+        for command in ["ft", "ft show"]:
+            search.in_text = command
+            output, iterationDone = self.capture_stdout(search.do_command)
+            self.assertTrue(iterationDone, msg=f"Command {command!r} didn't request 'no search'.")
+            self.verify_singleline_structure(output, msg=f"Command {command!r} doesn't have single-line output. (output was: {output!r})")
+            self.assertTrue(f"threshold is {last_value}" in output, msg=f"Command {command!r} didn't show current value. (output was: {output!r})")
 
     def test_command_h(self):
         search = self.search
