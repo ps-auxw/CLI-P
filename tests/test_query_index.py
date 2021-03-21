@@ -76,16 +76,22 @@ class TestQueryIndex(unittest.TestCase):
             expect_singleline_structure=None, interpolate_value=False)
 
     def test_command_ft(self):
+        search = self.search
+        prev_value = search.face_threshold
         values = [
             (1.0, True), (0.5, True), (0.0, True),
             (1.1, False), (-0.1, False),
         ]
-        for v in values:
-            self.verify_command_behaviour_setfield("ft", "face_threshold", v[0],  v[1],
+        for value, expect_success in values:
+            self.verify_command_behaviour_setfield("ft", "face_threshold", value,  expect_success,
                 success_msg_prefix="Set face similarity threshold",
                 fail_msg_prefix="Invalid face threshold")
+            # Also test for persistence:
+            search2 = self.query_index.Search()
+            self.assertEqual(value if expect_success else prev_value, search2.face_threshold, msg=f"Persistence check for value {value}, expect_success {expect_success} failed.")
+            if expect_success:
+                prev_value = search.face_threshold
         # Check "show value" as well.
-        search = self.search
         last_value = [v for v in filter(lambda v: v[1], values)][-1]  # Last to-be-successfully-set value.
         search.face_threshold = last_value  # Oh well... Necessary as negative tests reset the field to None!
         for command in ["ft", "ft show"]:
