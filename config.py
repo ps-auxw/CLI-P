@@ -16,9 +16,15 @@ logger = logging.getLogger(__name__)
 by_path_prefix = weakref.WeakValueDictionary()
 
 class ConfigDB:
-    def __init__(self, path_prefix=None):
+    ALREADY_OPENED_MSG = "config database already opened"
+
+    @classmethod
+    def default_path_prefix(cls):
+        return Path('.')
+
+    def __init__(self, *, path_prefix=None):
         if path_prefix is None:
-            path_prefix = Path('.')
+            path_prefix = self.default_path_prefix()
         elif type(path_prefix) is str:
             path_prefix = Path(path_prefix)
         self.path_prefix = path_prefix
@@ -46,6 +52,8 @@ class ConfigDB:
 
     # Open database
     def open_db(self):
+        if self.env is not None:
+            raise RuntimeError(self.ALREADY_OPENED_MSG)
         self.path = self.path_prefix / 'config.lmdb'
         logger.info("ConfigDB %#x: Opening DB at: %s", id(self), self.path)
         self.env = lmdb.open(str(self.path), map_size=config_map_size, max_dbs=4)
@@ -399,6 +407,25 @@ class ConfigDB:
     def get_setting_float(self, name, default):
         return self.get_setting(name, default, b2f)
 
+def get(*, path_prefix=None, try_open_db=True):
+    if path_prefix is None:
+        path_prefix = ConfigDB.default_path_prefix()
+    str_path_prefix = str(path_prefix)
+
+    try:
+        cfg = by_path_prefix[str_path_prefix]
+    except KeyError:
+        cfg = ConfigDB(path_prefix=path_prefix)
+
+    if try_open_db:
+        try:
+            cfg.open_db()
+        except RuntimeError as ex:
+            if str(ex) != ConfigDB.ALREADY_OPENED_MSG:
+                raise RuntimeError("config.get(): opening ConfigDB failed") from ex
+
+    return cfg
+
 
 # Compatibility
 
@@ -423,8 +450,7 @@ def open_db():
     global default_config_db
     if default_config_db is not None:
         raise RuntimeError("default ConfigDB already opened")
-    default_config_db = ConfigDB()
-    default_config_db.open_db()
+    default_config_db = get()
     atexit.register(lambda: default_config_db.close())
 
 def __getattr__(name):
