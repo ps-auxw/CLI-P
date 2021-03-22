@@ -6,13 +6,14 @@ class TestQueryIndex(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls.path_prefix = "tests"
         cls.query_index = __import__("query-index")
-        cls.db = cls.query_index.database.get(path_prefix="tests", pack_type='<L')
-        cls.cfg = cls.query_index.config.get(path_prefix="tests")
+        cls.db = cls.query_index.database.get(path_prefix=cls.path_prefix, pack_type='<L')
+        cls.cfg = cls.query_index.config.get(path_prefix=cls.path_prefix)
 
     @classmethod
     def createSearchInstance(cls):
-        return cls.query_index.Search(db=cls.db, cfg=cls.cfg)
+        return cls.query_index.Search(path_prefix=cls.path_prefix, db=cls.db, cfg=cls.cfg)
 
     def setUp(self):
         self.search = self.createSearchInstance()

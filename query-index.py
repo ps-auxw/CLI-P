@@ -1,6 +1,7 @@
 import time
 import os
 import os.path
+from pathlib import Path
 import sys
 import re
 import enum
@@ -82,26 +83,31 @@ class SearchMode(enum.IntEnum):
 
 class Search:
 
-    def __init__(self, *, db=None, cfg=None):
+    def __init__(self, *, path_prefix=None, db=None, cfg=None):
+        if path_prefix is None:
+            path_prefix = database.DB.default_path_prefix()
+        elif type(path_prefix) is str:
+            path_prefix = Path(path_prefix)
+
         self.model, _ = store_clip_model.get()
         self.device = store_clip_model.loaded_device
 
         self.model.eval()
 
         if db is None:
-            db = database.get(try_open_db=False)
+            db = database.get(path_prefix=path_prefix, try_open_db=False)
         self.db = db
         self.db.try_open_db()
 
         if cfg is None:
-            cfg = config.get(try_open_db=False)
+            cfg = config.get(path_prefix=path_prefix, try_open_db=False)
         self.cfg = cfg
         self.cfg.try_open_db()
 
-        self.index = faiss.read_index("images.index")
+        self.index = faiss.read_index(str(path_prefix / "images.index"))
         self.index.nprobe = self.cfg.get_setting_int("probe", 64)
 
-        self.faces_index = faiss.read_index("faces.index")
+        self.faces_index = faiss.read_index(str(path_prefix / "faces.index"))
         self.faces_index.nprobe = self.cfg.get_setting_int("probe", 64)
 
         self.running_cli = None
