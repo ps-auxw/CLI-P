@@ -93,6 +93,13 @@ class DB:
             if res is None:
                 txn.put(b'next', self.i2b(0))
 
+    def try_open_db(self, *, pack_type=None):
+        try:
+            self.open_db(pack_type=pack_type)
+        except RuntimeError as ex:
+            if str(ex) != self.ALREADY_OPENED_MSG:
+                raise RuntimeError("database.DB: opening database failed") from ex
+
     def close(self):
         if self.env is not None:
             logger.debug("DB %#x: Closing DB", id(self))
@@ -248,11 +255,7 @@ def get(*, path_prefix=None, pack_type=None, try_open_db=True):
         db = DB(path_prefix=path_prefix, pack_type=pack_type)
 
     if try_open_db:
-        try:
-            db.open_db(pack_type=pack_type)
-        except RuntimeError as ex:
-            if str(ex) != DB.ALREADY_OPENED_MSG:
-                raise RuntimeError("database.get(): opening DB failed") from ex
+        db.try_open_db(pack_type=pack_type)
 
     if pack_type is not None and pack_type != db.int_type:
         raise RuntimeError(f"database.get(): pack_type={pack_type!r} was specified, but db has int_type={db.int_type!r}")

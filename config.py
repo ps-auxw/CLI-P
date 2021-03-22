@@ -65,6 +65,13 @@ class ConfigDB:
         self.cluster_db = self.env.open_db(b'cluster_db', dupsort=True)
         self.load_tags()
 
+    def try_open_db(self):
+        try:
+            self.open_db()
+        except RuntimeError as ex:
+            if str(ex) != self.ALREADY_OPENED_MSG:
+                raise RuntimeError("config.ConfigDB: opening config database failed") from ex
+
     def close(self):
         if self.env is not None:
             logger.debug("ConfigDB %#x: Closing DB", id(self))
@@ -418,11 +425,7 @@ def get(*, path_prefix=None, try_open_db=True):
         cfg = ConfigDB(path_prefix=path_prefix)
 
     if try_open_db:
-        try:
-            cfg.open_db()
-        except RuntimeError as ex:
-            if str(ex) != ConfigDB.ALREADY_OPENED_MSG:
-                raise RuntimeError("config.get(): opening ConfigDB failed") from ex
+        cfg.try_open_db()
 
     return cfg
 
