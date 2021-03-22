@@ -7,9 +7,15 @@ class TestQueryIndex(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.query_index = __import__("query-index")
+        cls.db = cls.query_index.database.get(path_prefix="tests", pack_type='<L')
+        cls.cfg = cls.query_index.config.get(path_prefix="tests")
+
+    @classmethod
+    def createSearchInstance(cls):
+        return cls.query_index.Search(db=cls.db, cfg=cls.cfg)
 
     def setUp(self):
-        self.search = self.query_index.Search()
+        self.search = self.createSearchInstance()
 
     def tearDown(self):
         pass
@@ -87,7 +93,7 @@ class TestQueryIndex(unittest.TestCase):
                 success_msg_prefix="Set face similarity threshold",
                 fail_msg_prefix="Invalid face threshold")
             # Also test for persistence:
-            search2 = self.query_index.Search()
+            search2 = self.createSearchInstance()
             self.assertEqual(value if expect_success else prev_value, search2.face_threshold, msg=f"Persistence check for value {value}, expect_success {expect_success} failed.")
             if expect_success:
                 prev_value = search.face_threshold

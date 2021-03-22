@@ -2,6 +2,8 @@
 # Anchored at top-level:
 /*.lmdb/
 /*.index
+/tests/*.lmdb/
+/tests/*.index
 /cli-p.conf
 /.vscode
 
