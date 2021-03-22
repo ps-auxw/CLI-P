@@ -14,9 +14,15 @@ logger = logging.getLogger(__name__)
 by_path_prefix = weakref.WeakValueDictionary()
 
 class DB:
+    ALREADY_OPENED_MSG = "database already opened"
+
+    @classmethod
+    def default_path_prefix(cls):
+        return Path('.')
+
     def __init__(self, *, path_prefix=None, pack_type=None):
         if path_prefix is None:
-            path_prefix = Path('.')
+            path_prefix = self.default_path_prefix()
         elif type(path_prefix) is str:
             path_prefix = Path(path_prefix)
         self.path_prefix = path_prefix
@@ -48,6 +54,8 @@ class DB:
         self.int_type = pack_type
 
     def open_db(self, *, pack_type=None):
+        if self.env is not None:
+            raise RuntimeError(self.ALREADY_OPENED_MSG)
         if pack_type is not None:
             self.int_type = pack_type
         self.path = self.path_prefix / 'vectors.lmdb'
@@ -229,6 +237,28 @@ class DB:
             txn.put(fn_hash, idx)
         return idx
 
+def get(*, path_prefix=None, pack_type=None, try_open_db=True):
+    if path_prefix is None:
+        path_prefix = DB.default_path_prefix()
+    str_path_prefix = str(path_prefix)
+
+    try:
+        db = by_path_prefix[str_path_prefix]
+    except KeyError:
+        db = DB(path_prefix=path_prefix, pack_type=pack_type)
+
+    if try_open_db:
+        try:
+            db.open_db(pack_type=pack_type)
+        except RuntimeError as ex:
+            if str(ex) != DB.ALREADY_OPENED_MSG:
+                raise RuntimeError("database.get(): opening DB failed") from ex
+
+    if pack_type is not None and pack_type != db.int_type:
+        raise RuntimeError(f"database.get(): pack_type={pack_type!r} was specified, but db has int_type={db.int_type!r}")
+
+    return db
+
 
 # Compatibility
 
@@ -250,8 +280,7 @@ def open_db(pack_type=None):  # (Note: Allows positional argument, as it's compa
     global default_db
     if default_db is not None:
         raise RuntimeError("default DB already opened")
-    default_db = DB()
-    default_db.open_db(pack_type=pack_type)
+    default_db = get(pack_type=pack_type)
     atexit.register(lambda: default_db.close())
 
 def __getattr__(name):
