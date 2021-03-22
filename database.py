@@ -14,14 +14,15 @@ logger = logging.getLogger(__name__)
 by_path_prefix = weakref.WeakValueDictionary()
 
 class DB:
-    def __init__(self, path_prefix=None):
+    def __init__(self, *, path_prefix=None, pack_type=None):
         if path_prefix is None:
             path_prefix = Path('.')
         elif type(path_prefix) is str:
             path_prefix = Path(path_prefix)
         self.path_prefix = path_prefix
         by_path_prefix[str(self.path_prefix)] = self
-        logger.debug("DB %#x: Instantiating DB(path_prefix=%r)", id(self), self.path_prefix)
+
+        logger.debug("DB %#x: Instantiating DB(path_prefix=%r, pack_type=%r)", id(self), self.path_prefix, pack_type)
 
         # LMDB environment
         self.env = None
@@ -42,11 +43,16 @@ class DB:
         self.idx_face_db = None
 
         # uint64
-        self.int_type = '<Q'
+        self.fallback_int_type = '<Q'
 
-    def open_db(self, pack_type='<Q'):
+        self.int_type = pack_type
+
+    def open_db(self, *, pack_type=None):
+        if pack_type is not None:
+            self.int_type = pack_type
         self.path = self.path_prefix / 'vectors.lmdb'
-        logger.info("DB %#x: Opening DB at: %s", id(self), self.path)
+        logger.info("DB %#x: Opening DB (pack_type=%r, resulting requested int_type=%r) at: %s", id(self),
+            pack_type, self.int_type, self.path)
         self.env = lmdb.open(str(self.path), map_size=vectors_map_size, max_dbs=5)
         weakref.finalize(self, self.close)
 
@@ -55,14 +61,26 @@ class DB:
         self.fix_idx_db = self.env.open_db(b'fix_idx_db')
         self.idx_db = self.env.open_db(b'idx_db')
         self.idx_face_db = self.env.open_db(b'idx_face_db')
-        self.int_type = pack_type
 
         with self.env.begin(db=self.fix_idx_db, write=True) as txn:
             res = txn.get(b'int_type')
             if res is None:
-                txn.put(b'int_type', pack_type.encode('utf-8', 'surrogateescape'))
+                using_fallback = False
+                if self.int_type is None:
+                    using_fallback = True
+                    self.int_type = self.fallback_int_type
+                logger.info("DB %#x: ... initializing DB int_type to %r (using_fallback=%r)", id(self),
+                    self.int_type, using_fallback)
+                txn.put(b'int_type', self.int_type.encode('utf-8', 'surrogateescape'))
             else:
-                self.int_type = res.decode()
+                db_int_type = res.decode()
+                matched = None
+                if self.int_type is not None:
+                    matched = db_int_type == self.int_type
+                    if not matched:
+                        raise RuntimeError(f"database int_type={db_int_type!r} doesn't match requested int_type={self.int_type!r}")
+                self.int_type = db_int_type
+                logger.debug("DB %#x: ... loaded DB int_type of %r (matched=%r)", id(self), self.int_type, matched)
             res = txn.get(b'next')
             if res is None:
                 txn.put(b'next', self.i2b(0))
@@ -228,12 +246,12 @@ default_keys = [
     'check_face', 'get_face', 'get_faces', 'put_faces', 'put_fn',
 ]
 
-def open_db(pack_type='<Q'):
+def open_db(pack_type=None):  # (Note: Allows positional argument, as it's compatibility code!)
     global default_db
     if default_db is not None:
         raise RuntimeError("default DB already opened")
     default_db = DB()
-    default_db.open_db(pack_type)
+    default_db.open_db(pack_type=pack_type)
     atexit.register(lambda: default_db.close())
 
 def __getattr__(name):
