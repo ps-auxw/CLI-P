@@ -163,10 +163,13 @@ class TestQueryIndex(unittest.TestCase):
                     for result in search.prepare_results():
                         n += 1
                         result_image_name = os.path.basename(result.tfn)
+                        found = False
                         try:
                             image_names_left.remove(result_image_name)
+                            found = True
                         except KeyError:
-                            self.fail(msg=f"Search for search_text={search_text!r} didn't give any expected result, but {result_image_name!r}")
+                            pass
+                        self.assertTrue(found, msg=f"Search for search_text={search_text!r} didn't give any expected result, but {result_image_name!r}")
                         if len(image_names_left) == 0:
                             break
                     self.assertEquals(len(image_names_left), 0, msg=f"Search for search_text={search_text!r} has no further result (after {n} results) with {len(image_names_left)} image names left")
