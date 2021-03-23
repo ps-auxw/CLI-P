@@ -56,6 +56,9 @@ class Scanner:
         self.db = database.get(path_prefix=self.path_prefix, pack_type=self.pack_type)
 
     def clip_paths(self, base_paths):
+        if type(base_paths) is str:
+            # Make a proper list... Otherwise, the string will be decomposed and only its first character used as base_path ...
+            base_paths = [base_paths]
         with torch.no_grad():
             for base_path in base_paths:
                 print(f"CLIPing {base_path}...")
