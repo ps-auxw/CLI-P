@@ -115,10 +115,10 @@ class Scanner:
                     images = np.zeros((nd, 512))
                     print(f"Preparing indexes...")
                     quantizer = faiss.IndexFlatIP(512)
-                    index = faiss.IndexIVFFlat(quantizer, 512, clusters, faiss.METRIC_INNER_PRODUCT)
+                    index = faiss.IndexIVFFlat(quantizer, 512, self.clusters, faiss.METRIC_INNER_PRODUCT)
                     if self.faces:
                         faces_quantizer = faiss.IndexFlatIP(512)
-                        faces_index = faiss.IndexIVFFlat(faces_quantizer, 512, clusters, faiss.METRIC_INNER_PRODUCT)
+                        faces_index = faiss.IndexIVFFlat(faces_quantizer, 512, self.clusters, faiss.METRIC_INNER_PRODUCT)
                     print(f"Generating matrix...")
                     for fn_hash, fix_idx in cursor:
                         fn = txn.get(fix_idx + b'n').decode()
