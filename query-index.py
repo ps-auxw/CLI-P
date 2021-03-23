@@ -681,6 +681,24 @@ class Search:
                 return None, j, compensate
         return result, j, compensate
 
+    def prepare_results(self):
+        """
+        A generator function that abstracts out a minimal control flow
+        when using Search.prepare_result() (singular).
+
+        @yield a result from Search.prepare_result(j)
+        @ytype Search.Result
+        """
+        n_results = 0 if self.results is None else len(self.results)
+        j = 0
+        while j < n_results:
+            result, j, _ = self.prepare_result(j)
+            if j is None:
+                break
+            elif result is None:
+                continue
+            yield result
+
     def prepare_image(self, result, max_res=None):
         if max_res is None:
             max_res = self.max_res

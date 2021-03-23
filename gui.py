@@ -297,13 +297,7 @@ class MainWindow(QMainWindow):
             return
         #self.stdoutSearchOutput(search.do_display)
         self.appendSearchOutput(f"Building results model for {n_results} results...")
-        j = 0
-        while j < n_results:
-            result, j, _ = search.prepare_result(j)
-            if j is None:
-                break
-            elif result is None:
-                continue
+        for result in search.prepare_results():
             self.appendToSearchResultsModel(result)
         self.appendSearchOutput(f"Built results model with {self.searchResultsModel.rowCount()} entries.")
 
