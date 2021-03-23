@@ -145,28 +145,29 @@ class TestQueryIndex(unittest.TestCase):
         }
         for search_text in text2image_dict:
             image_name = text2image_dict[search_text]
-            search.in_text = search_text
-            _, iterationDone = self.capture_stdout(search.do_command)
-            self.assertFalse(iterationDone, msg=f"Search.do_command() requested 'no search' for search_text={search_text!r}")
-            self.capture_stdout(search.do_search)
-            if type(image_name) is str:
-                result, _, _ = search.prepare_result(0)
-                self.assertIsNotNone(result, msg=f"Search for search_text={search_text!r} gave no result!")
-                self.assertTrue(result.tfn.endswith('/' + image_name), msg=f"Search for search_text={search_text!r} didn't give expected result {image_name!r} but {result.tfn!r}")
-            else:
-                image_names_left = set(image_name)
-                j = 0
-                while len(image_names_left) > 0:
-                    self.assertIsNotNone(j, msg=f"Search for search_text={search_text!r} has no further j with {len(image_names_left)} image names left")
-                    result, next_j, _ = search.prepare_result(j)
-                    self.assertIsNotNone(result, msg=f"Search for search_text={search_text!r} gave no result for j={j}!")
-                    j = next_j
-                    result_image_name = os.path.basename(result.tfn)
-                    try:
-                        image_names_left.remove(result_image_name)
-                    except KeyError:
-                        self.fail(msg=f"Search for search_text={search_text!r} didn't give any expected result, but {result_image_name!r}")
-            # TODO: Also check similarity score?
+            with self.subTest(search_text=search_text, image_name=image_name):
+                search.in_text = search_text
+                _, iterationDone = self.capture_stdout(search.do_command)
+                self.assertFalse(iterationDone, msg=f"Search.do_command() requested 'no search' for search_text={search_text!r}")
+                self.capture_stdout(search.do_search)
+                if type(image_name) is str:
+                    result, _, _ = search.prepare_result(0)
+                    self.assertIsNotNone(result, msg=f"Search for search_text={search_text!r} gave no result!")
+                    self.assertTrue(result.tfn.endswith('/' + image_name), msg=f"Search for search_text={search_text!r} didn't give expected result {image_name!r} but {result.tfn!r}")
+                else:
+                    image_names_left = set(image_name)
+                    j = 0
+                    while len(image_names_left) > 0:
+                        self.assertIsNotNone(j, msg=f"Search for search_text={search_text!r} has no further j with {len(image_names_left)} image names left")
+                        result, next_j, _ = search.prepare_result(j)
+                        self.assertIsNotNone(result, msg=f"Search for search_text={search_text!r} gave no result for j={j}!")
+                        j = next_j
+                        result_image_name = os.path.basename(result.tfn)
+                        try:
+                            image_names_left.remove(result_image_name)
+                        except KeyError:
+                            self.fail(msg=f"Search for search_text={search_text!r} didn't give any expected result, but {result_image_name!r}")
+                # TODO: Also check similarity score?
 
 if __name__ == '__main__':
     unittest.main()
