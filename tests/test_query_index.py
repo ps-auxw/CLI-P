@@ -1,6 +1,7 @@
 import unittest
 import contextlib
 from io import StringIO
+import os.path
 
 class TestQueryIndex(unittest.TestCase):
 
@@ -116,6 +117,56 @@ class TestQueryIndex(unittest.TestCase):
         self.assertTrue(output.count("\n") >= 3, msg="Command didn't give multi-line output message.")
         self.assertTrue("Enter a search query" in output, msg="Command missing basic help string.")
         self.assertTrue("h\t\tShow this help" in output, msg="Command missing self-referential help string.")
+
+    def test_text_search(self):
+        search = self.search
+        text2image_dict = {
+            "owl":
+                "dennis-buchner-wfFC7y5HY44-unsplash.jpg",
+            "cat":
+                "uriel-soberanes-xadzcCQZ_Xc-unsplash.jpg",
+            "rabbit":
+                "satyabrata-sm-u_kMWN-BWyU-unsplash.jpg",
+            "forest":
+                ["andrew-neel-a_K7R1kugUE-unsplash.jpg",
+                "luca-bravo-ESkw2ayO2As-unsplash.jpg",
+                "matt-dodd-1bywoXeKbT4-unsplash.jpg",
+                "priscilla-du-preez-XY9tbPYhR34-unsplash.jpg"],
+            "forest at night":
+                "matt-dodd-1bywoXeKbT4-unsplash.jpg",
+            "church":
+                "paul-teysen-FFXTiBQz42o-unsplash.jpg",
+            "indoors":
+                "adam-winger--OzQ6lO0mMA-unsplash.jpg",
+            "city at night":
+                "mike-swigunski-VEFEYV4M6mw-unsplash.jpg",
+            "crowd":
+                "jason-ortego-GbZsvIIi4Xw-unsplash.jpg",
+        }
+        for search_text in text2image_dict:
+            image_name = text2image_dict[search_text]
+            search.in_text = search_text
+            _, iterationDone = self.capture_stdout(search.do_command)
+            self.assertFalse(iterationDone, msg=f"Search.do_command() requested 'no search' for search_text={search_text!r}")
+            self.capture_stdout(search.do_search)
+            if type(image_name) is str:
+                result, _, _ = search.prepare_result(0)
+                self.assertIsNotNone(result, msg=f"Search for search_text={search_text!r} gave no result!")
+                self.assertTrue(result.tfn.endswith('/' + image_name), msg=f"Search for search_text={search_text!r} didn't give expected result {image_name!r} but {result.tfn!r}")
+            else:
+                image_names_left = set(image_name)
+                j = 0
+                while len(image_names_left) > 0:
+                    self.assertIsNotNone(j, msg=f"Search for search_text={search_text!r} has no further j with {len(image_names_left)} image names left")
+                    result, next_j, _ = search.prepare_result(j)
+                    self.assertIsNotNone(result, msg=f"Search for search_text={search_text!r} gave no result for j={j}!")
+                    j = next_j
+                    result_image_name = os.path.basename(result.tfn)
+                    try:
+                        image_names_left.remove(result_image_name)
+                    except KeyError:
+                        self.fail(msg=f"Search for search_text={search_text!r} didn't give any expected result, but {result_image_name!r}")
+            # TODO: Also check similarity score?
 
 if __name__ == '__main__':
     unittest.main()
