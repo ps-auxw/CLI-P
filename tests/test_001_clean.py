@@ -17,13 +17,18 @@ class CleanTestEnvironment(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         try:
-            cls.lmdbs = []
+            cls.db_paths = []
             for env_name in ['vectors', 'config']:
                 path = Path(f"tests/{env_name}.lmdb")
-                cls.lmdbs.append(path)
+                cls.db_paths.append(path)
                 if not path.exists():
                     continue
                 cls.remove_lmdb(path)
+            for index_name in ['images', 'faces']:
+                path = Path(f"tests/{index_name}.index")
+                cls.db_paths.append(path)
+                if path.exists():
+                    path.unlink()
         except BaseException as ex:
             sys.excepthook(type(ex), ex, ex.__traceback__)
             sys.exit(f"{cls.__name__}: Error during pre-tests cleanup, aborting test suite!")
@@ -34,9 +39,10 @@ class CleanTestEnvironment(unittest.TestCase):
             print(f"{self.__class__.__name__}: Pre-tests cleanup post-check failed, stopping test suite!", flush=True)
             result.stop()
 
-    def test_lmdbs_gone(self):
-        for path in self.lmdbs:
-            self.assertFalse(path.exists(), msg=f"LMDB still exists: {path}")
+    def test_dbs_gone(self):
+        for db_path in self.db_paths:
+            with self.subTest(db_path=db_path):
+                self.assertFalse(db_path.exists(), msg=f"Database file still exists: {db_path}")
 
 if __name__ == '__main__':
     unittest.main()
