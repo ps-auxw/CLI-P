@@ -63,7 +63,8 @@
       "CREDITS",
       "LICENSE",
       ".gitignore",
-      ".gitmodules"
+      ".gitmodules",
+      "tests/README.md"
     ],
     "OTHERTOOLSPARMS": {},
     "PACKAGERSPARMS": {},

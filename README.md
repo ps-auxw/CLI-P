@@ -69,6 +69,9 @@ which you can call via: `python -m unittest discover tests`
 That is, invoke the Python `unittest` module's `discover` sub-command
 on the `tests` directory.
 
+For more details, example commands and example output, see
+[the test-suite's README](tests/README.md).
+
 ## Credits
 
 By ps-auxw. OO/GUI work by canvon.
