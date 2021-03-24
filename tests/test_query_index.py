@@ -80,10 +80,12 @@ class TestQueryIndex(unittest.TestCase):
             self.assertIsNone(stored_value, msg="Command updated Search object although it shouldn't have. => " + msg_suffix)
 
     def test_command_q(self):
+        """Test query-index.Search text command 'q' (quit)."""
         self.verify_command_behaviour_setfield("q", "running_cli", False, True,
             expect_singleline_structure=None, interpolate_value=False)
 
     def test_command_ft(self):
+        """Test query-index.Search text command 'ft' (face similarity threshold)."""
         search = self.search
         prev_value = search.face_threshold
         values = [
@@ -112,6 +114,7 @@ class TestQueryIndex(unittest.TestCase):
                 self.assertTrue(f"threshold is {last_value}" in output, msg=f"Command {command!r} didn't show current value. (output was: {output!r})")
 
     def test_command_h(self):
+        """Test query-index.Search text command 'h' (help)."""
         search = self.search
         search.in_text = "h"
         output, iterationDone = self.capture_stdout(search.do_command)
@@ -121,6 +124,7 @@ class TestQueryIndex(unittest.TestCase):
         self.assertTrue("h\t\tShow this help" in output, msg="Command missing self-referential help string.")
 
     def test_text_search(self):
+        """Test query-index.Search text search on sample images."""
         search = self.search
         text2image_dict = {
             "owl":
