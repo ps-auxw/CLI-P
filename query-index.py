@@ -691,6 +691,8 @@ class Search:
         """
         n_results = 0 if self.results is None else len(self.results)
         j = 0
+        self.tried_j = -1
+        self.last_vector = None
         while j < n_results:
             result, j, _ = self.prepare_result(j)
             if j is None:

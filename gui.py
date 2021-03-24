@@ -350,6 +350,8 @@ class MainWindow(QMainWindow):
         rowOffset = result.gui_rowOffset
         # Recreate Search.Result instance.
         # (e.g., rereads annotations/tags.)
+        search.tried_j = -1
+        search.last_vector = None
         recreatedResult, j, _ = search.prepare_result(result.results_j)
         if j is None:
             self.appendSearchOutput(f"Failed to recreate search results model row {rowOffset+1}: Prepare result indicated end of results.")
