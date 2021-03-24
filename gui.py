@@ -126,6 +126,8 @@ class MainWindow(QMainWindow):
         self.imagesToolBar = imgsToolBar
         self.imagesActionAddTag = imgsToolBar.addAction("Add to tag (&+)", self.imagesActionAddTagTriggered)
         self.imagesActionDelTag = imgsToolBar.addAction("Del from tag (&-)", self.imagesActionDelTagTriggered)
+        self.imagesActionAddTag.setShortcut("Ctrl+T")
+        self.imagesActionDelTag.setShortcut("Ctrl+Shift+T")
 
         self.imageLabel = QLabel()
         self.imagesTableView = QTableView()
