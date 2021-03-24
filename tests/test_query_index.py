@@ -2,11 +2,16 @@ import unittest
 import contextlib
 from io import StringIO
 import os.path
+import warnings
 
 class TestQueryIndex(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        # Not our bugs. (Or: De-clutter test suite terminal output.)
+        warnings.filterwarnings("ignore", module="clip", category=ResourceWarning, message="unclosed file")
+        warnings.filterwarnings("ignore", module="distutils", category=DeprecationWarning, message="the imp module is deprecated in favour of importlib")
+
         cls.path_prefix = "tests"
         cls.query_index = __import__("query-index")
         cls.db = cls.query_index.database.get(path_prefix=cls.path_prefix, pack_type='<L')
