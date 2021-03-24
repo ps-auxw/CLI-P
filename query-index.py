@@ -697,6 +697,16 @@ class Search:
                 break
             elif result is None:
                 continue
+            #
+            # N.B.: It's only prepare_result()'s job to skip (in certain cases);
+            # the "normal" increment we'll have to do ourselves.
+            #
+            # Omitting this worked "accidentally", as prepare_result() would
+            # have skipped the image as duplicate after a second call
+            # with same j... (But not with all search modes, which hung up
+            # the GUI, e.g., on `l 0` command...)
+            #
+            j += 1
             yield result
 
     def prepare_image(self, result, max_res=None):
