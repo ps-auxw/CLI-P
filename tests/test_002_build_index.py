@@ -1,9 +1,15 @@
+import tests.helper
+tests.helper.setupWarningFilters()
+
 import unittest
 
 class TestBuildIndex(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        # Call a second time to undo changes made by the test runner...
+        tests.helper.setupWarningFilters()
+
         cls.path_prefix = "tests"
         cls.samples_path = "sample-images/downscale"
         cls.build_index = __import__("build-index")

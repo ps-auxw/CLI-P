@@ -1,16 +1,17 @@
+import tests.helper
+tests.helper.setupWarningFilters()
+
 import unittest
 import contextlib
 from io import StringIO
 import os.path
-import warnings
 
 class TestQueryIndex(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        # Not our bugs. (Or: De-clutter test suite terminal output.)
-        warnings.filterwarnings("ignore", module="clip", category=ResourceWarning, message="unclosed file")
-        warnings.filterwarnings("ignore", module="distutils", category=DeprecationWarning, message="the imp module is deprecated in favour of importlib")
+        # Call a second time to undo changes made by the test runner...
+        tests.helper.setupWarningFilters()
 
         cls.path_prefix = "tests"
         cls.query_index = __import__("query-index")

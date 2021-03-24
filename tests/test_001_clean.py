@@ -1,3 +1,7 @@
+# (Currently unneeded here, but for symmetry:)
+import tests.helper
+tests.helper.setupWarningFilters()
+
 import unittest
 import sys
 from pathlib import Path
@@ -16,6 +20,7 @@ class CleanTestEnvironment(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        tests.helper.setupWarningFilters()
         try:
             cls.db_paths = []
             for env_name in ['vectors', 'config']:
