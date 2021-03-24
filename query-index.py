@@ -1,12 +1,13 @@
 import time
 import os
 import os.path
+from pathlib import Path
 import sys
 import re
 import enum
 import numpy as np
 import lmdb
-import torch_device
+import models_store  # (imports torch_device)
 import torch
 import clip
 import faiss
@@ -16,6 +17,12 @@ import cv2
 import config
 import database
 from faces import annotate as annotate_faces
+
+CLIP_MODEL_KEY = "clip"
+store_clip_model = models_store.store.register_lazy_or_getitem(CLIP_MODEL_KEY,
+    lambda device: clip.load("ViT-B/32", device=device, jit=False))
+if not store_clip_model.is_loaded():
+    store_clip_model.loading_device = "cpu"
 
 def go(j, go_dir, compensate):
     if go_dir == 0:
@@ -76,50 +83,58 @@ class SearchMode(enum.IntEnum):
 
 class Search:
 
-    def __init__(self, device=None):
-        if device == None:
-            #device = "cuda" if torch.cuda.is_available() else "cpu"
-            device = "cpu"
-        self.device = device
+    def __init__(self, *, path_prefix=None, db=None, cfg=None):
+        if path_prefix is None:
+            path_prefix = database.DB.default_path_prefix()
+        elif type(path_prefix) is str:
+            path_prefix = Path(path_prefix)
 
-        self.model, _ = clip.load("ViT-B/32", device=device, jit=False)
+        self.model, _ = store_clip_model.get()
+        self.device = store_clip_model.loaded_device
 
         self.model.eval()
 
-        database.open_db()
-        config.open_db()
+        if db is None:
+            db = database.get(path_prefix=path_prefix, try_open_db=False)
+        self.db = db
+        self.db.try_open_db()
 
-        self.index = faiss.read_index("images.index")
-        self.index.nprobe = config.get_setting_int("probe", 64)
+        if cfg is None:
+            cfg = config.get(path_prefix=path_prefix, try_open_db=False)
+        self.cfg = cfg
+        self.cfg.try_open_db()
 
-        self.faces_index = faiss.read_index("faces.index")
-        self.faces_index.nprobe = config.get_setting_int("probe", 64)
+        self.index = faiss.read_index(str(path_prefix / "images.index"))
+        self.index.nprobe = self.cfg.get_setting_int("probe", 64)
+
+        self.faces_index = faiss.read_index(str(path_prefix / "faces.index"))
+        self.faces_index.nprobe = self.cfg.get_setting_int("probe", 64)
 
         self.running_cli = None
         self.in_text = ""
         self.texts = None
         self.features = None
-        self.show_faces = config.get_setting_bool("show_faces", False)
-        self.show_prefix = config.get_setting_bool("show_prefix", True)
-        self.face_threshold = config.get_setting_float("face_threshold", 0.60)
-        self.clip_threshold = config.get_setting_float("clip_threshold", 0.19)
-        self.k = config.get_setting_int("k", 50)
+        self.show_faces = self.cfg.get_setting_bool("show_faces", False)
+        self.show_prefix = self.cfg.get_setting_bool("show_prefix", True)
+        self.face_threshold = round(self.cfg.get_setting_float("face_threshold", 0.60), 4)  # round(): Make test suite pass.
+        self.clip_threshold = self.cfg.get_setting_float("clip_threshold", 0.19)
+        self.k = self.cfg.get_setting_int("k", 50)
         self.offset = 0
         self.last_j = -1
         self.search_mode = SearchMode.NONE
         self.max_res = None
-        if config.get_setting_bool("max_res_set", False):
-            self.max_res = (config.get_setting_int("max_res_x", 1280), config.get_setting_int("max_res_y", 720))
-        self.align_window = config.get_setting_bool("align_window", False)
+        if self.cfg.get_setting_bool("max_res_set", False):
+            self.max_res = (self.cfg.get_setting_int("max_res_x", 1280), self.cfg.get_setting_int("max_res_y", 720))
+        self.align_window = self.cfg.get_setting_bool("align_window", False)
         self.results = None
-        self.skip_same = config.get_setting_bool("skip_same", True)
-        self.growth_limit = config.get_setting_int("growth_limit", 2**16)
+        self.skip_same = self.cfg.get_setting_bool("skip_same", True)
+        self.growth_limit = self.cfg.get_setting_int("growth_limit", 2**16)
         self.last_vector = None
         self.face_features = None
         self.file_filter = None
         self.file_filter_mode = True # Inverted?
         self.target_tag = None
-        self.skip_perfect = config.get_setting_bool('skip_perfect', False)
+        self.skip_perfect = self.cfg.get_setting_bool('skip_perfect', False)
         self.cluster_mode = False
 
         self.init_msg = (
@@ -218,7 +233,7 @@ class Search:
                 if limit < 0:
                     raise Exception
                 self.growth_limit = limit
-                config.set_setting_float("growth_limit", self.growth_limit)
+                self.cfg.set_setting_float("growth_limit", self.growth_limit)
                 print(f"Set search growth limit to {self.growth_limit}.")
             except:
                 print("Invalid search growth limit.")
@@ -229,21 +244,25 @@ class Search:
                 if threshold < 0.0 or threshold > 1.0:
                     raise Exception
                 self.clip_threshold = threshold
-                config.set_setting_float("clip_threshold", self.clip_threshold)
+                self.cfg.set_setting_float("clip_threshold", self.clip_threshold)
                 print(f"Set CLIP similarity threshold to {self.clip_threshold}.")
             except:
                 print("Invalid CLIP threshold value.")
             return True
-        elif self.in_text.startswith('ft '):
-            try:
-                threshold = float(self.in_text[3:])
-                if threshold < 0.0 or threshold > 1.0:
-                    raise Exception
-                self.face_threshold = threshold
-                config.set_setting_float("face_threshold", self.face_threshold)
-                print(f"Set face similarity threshold to {self.face_threshold}.")
-            except:
-                print("Invalid face threshold value.")
+        elif self.in_text == 'ft' or self.in_text.startswith('ft '):
+            rest = self.in_text[3:]
+            if rest == '' or rest == 'show':
+                print(f"Face similarity threshold is {self.face_threshold}.")
+            else:
+                try:
+                    threshold = float(rest)
+                    if threshold < 0.0 or threshold > 1.0:
+                        raise Exception
+                    self.face_threshold = threshold
+                    self.cfg.set_setting_float("face_threshold", self.face_threshold)
+                    print(f"Set face similarity threshold to {self.face_threshold}.")
+                except:
+                    print("Invalid face threshold value.")
             return True
         elif self.in_text.startswith('p '):
             try:
@@ -252,14 +271,14 @@ class Search:
                     raise Exception
                 self.index.nprobe = probe
                 self.faces_index.nprobe = probe
-                config.set_setting_int("probe", probe)
+                self.cfg.set_setting_int("probe", probe)
                 print(f"Set to probe {probe} subsets.")
             except:
                 print("Invalid probe value.")
             return True
         elif self.in_text == 'fs':
             self.skip_perfect = not self.skip_perfect
-            config.set_setting_bool("skip_perfect", self.skip_perfect)
+            self.cfg.set_setting_bool("skip_perfect", self.skip_perfect)
             if self.skip_perfect:
                 print("Skipping perfect matches.")
             else:
@@ -267,7 +286,7 @@ class Search:
             return True
         elif self.in_text == 'k':
             self.skip_same = not self.skip_same
-            config.set_setting_bool("skip_same", self.skip_same)
+            self.cfg.set_setting_bool("skip_same", self.skip_same)
             if self.skip_same:
                 print("Skipping images with the same CLIP features as previous.")
             else:
@@ -275,7 +294,7 @@ class Search:
             return True
         elif self.in_text == 's':
             self.show_faces = not self.show_faces
-            config.set_setting_bool("show_faces", self.show_faces)
+            self.cfg.set_setting_bool("show_faces", self.show_faces)
             if self.show_faces:
                 print("Showing face information.")
             else:
@@ -283,7 +302,7 @@ class Search:
             return True
         elif self.in_text == 'sp':
             self.show_prefix = not self.show_prefix
-            config.set_setting_bool("show_prefix", self.show_prefix)
+            self.cfg.set_setting_bool("show_prefix", self.show_prefix)
             if self.show_prefix:
                 print("Showing prompt prefix.")
             else:
@@ -302,7 +321,7 @@ class Search:
             return True
         elif self.in_text == 'a':
             self.align_window = not self.align_window
-            config.set_setting_bool("align_window", self.align_window)
+            self.cfg.set_setting_bool("align_window", self.align_window)
             if self.align_window:
                 print("Aligning window position.")
             else:
@@ -320,15 +339,15 @@ class Search:
                 y = int(y)
                 if x > 0 and y > 0:
                     self.max_res = (x, y)
-                    config.set_setting_bool("max_res_set", True)
-                    config.set_setting_int("max_res_x", x)
-                    config.set_setting_int("max_res_y", y)
+                    self.cfg.set_setting_bool("max_res_set", True)
+                    self.cfg.set_setting_int("max_res_x", x)
+                    self.cfg.set_setting_int("max_res_y", y)
                     print(f"Set maximum resolution to {x}x{y}.")
                     return True
             except:
                 pass
             self.max_res = None
-            config.set_setting_bool("max_res_set", False)
+            self.cfg.set_setting_bool("max_res_set", False)
             print("Unset maximum resolution.")
             return True
         elif self.in_text.startswith('n '):
@@ -346,7 +365,7 @@ class Search:
             self.cluster_mode = self.in_text[0] == 'c'
             print("Existing tags:")
             print("#Faces\tTag")
-            tags = sorted(config.list_tags(self.cluster_mode), key=lambda x: x[1])
+            tags = sorted(self.cfg.list_tags(self.cluster_mode), key=lambda x: x[1])
             for tag in tags:
                 num, name = tag
                 print(f"{num}\t{name}")
@@ -355,7 +374,7 @@ class Search:
             self.cluster_mode = True
             print("Existing unnamed clusters:")
             print("ID\t#Faces")
-            clusters = config.list_unnamed_clusters()
+            clusters = self.cfg.list_unnamed_clusters()
             for cluster in clusters:
                 cluster_id, num = cluster
                 print(f"{cluster_id}\t{num}")
@@ -364,7 +383,7 @@ class Search:
             self.cluster_mode = True
             try:
                 cluster_id = int(self.in_text[4:])
-                self.results = config.get_unnamed_cluster_contents(cluster_id)
+                self.results = self.cfg.get_unnamed_cluster_contents(cluster_id)
                 if self.results is None or len(self.results) < 1:
                     print("Not found.")
                     return True
@@ -382,9 +401,9 @@ class Search:
                 tag = parts[0]
                 image_id = int(parts[1])
                 face_id = int(parts[2])
-                if not config.add_tag(tag, image_id, face_id, self.cluster_mode):
+                if not self.cfg.add_tag(tag, image_id, face_id, self.cluster_mode):
                     raise Exception
-                print(f"Added face {face_id} from image {image_id} to tag {tag}.")
+                print(f"Added face {face_id} from image {image_id} to{' cluster' if self.cluster_mode else ''} tag {tag}.")
             except:
                 print("Adding to tag failed.")
             return True
@@ -395,9 +414,9 @@ class Search:
                 tag = parts[0]
                 image_id = int(parts[1])
                 face_id = int(parts[2])
-                if not config.del_tag(tag, image_id, face_id, self.cluster_mode):
+                if not self.cfg.del_tag(tag, image_id, face_id, self.cluster_mode):
                     raise Exception
-                print(f"Removed face {face_id} from image {image_id} from tag {tag}.")
+                print(f"Removed face {face_id} from image {image_id} from{' cluster' if self.cluster_mode else ''} tag {tag}.")
             except:
                 print("Removing from tag failed.")
             return True
@@ -409,7 +428,7 @@ class Search:
                 tag = parts[0]
                 image_id = int(parts[1])
                 face_id = int(parts[2])
-                if not config.purge_cluster_tag(tag, image_id, face_id, prevent_recluster):
+                if not self.cfg.purge_cluster_tag(tag, image_id, face_id, prevent_recluster):
                     raise Exception
                 print(f"Scrubbed the cluster of face {face_id} from image {image_id} from tag {tag}.")
             except:
@@ -419,7 +438,7 @@ class Search:
             self.cluster_mode = self.in_text[0] == 'c'
             try:
                 tag = self.in_text[3:]
-                self.results = config.get_tag_contents(tag, self.cluster_mode)
+                self.results = self.cfg.get_tag_contents(tag, self.cluster_mode)
                 if self.results is None or tag == "" or len(self.results) < 1:
                     print("Not found.")
                     return True
@@ -441,12 +460,12 @@ class Search:
                 self.offset = -1
                 self.last_j = -1
                 try:
-                    filename = database.get_fix_idx_filename(image_id)
-                    annotations = database.get_faces(database.i2b(image_id))
+                    filename = self.db.get_fix_idx_filename(image_id)
+                    annotations = self.db.get_faces(self.db.i2b(image_id))
                     print(f"Showing {filename}:")
                     print(f"Image\tFace\tTag\tBounding box")
                     for i, annotation in enumerate(annotations):
-                        tag = config.get_face_tag(annotation, self.face_threshold, self.cluster_mode)
+                        tag = self.cfg.get_face_tag(annotation, self.face_threshold, self.cluster_mode)
                         print(f"{image_id}\t{i}\t{tag}\t{annotation['bbox']}")
                 except:
                     print("Not found.")
@@ -469,7 +488,7 @@ class Search:
                 self.offset = -1
                 self.last_j = -1
 
-                self.features = config.get_tag_embeddings(tag, self.cluster_mode)
+                self.features = self.cfg.get_tag_embeddings(tag, self.cluster_mode)
                 if self.in_text.startswith('T '):
                     average = self.features.mean(0, keepdims=True)
                     average = normalize(average)
@@ -499,8 +518,8 @@ class Search:
                 self.offset = -1
                 self.last_j = -1
 
-                filename = database.get_fix_idx_filename(image_id)
-                annotations = database.get_faces(database.i2b(image_id))
+                filename = self.db.get_fix_idx_filename(image_id)
+                annotations = self.db.get_faces(self.db.i2b(image_id))
                 self.features = annotations[face_id]['embedding']
                 if len(parts) > 2:
                     self.face_features = self.features
@@ -518,8 +537,8 @@ class Search:
                 image_id = int(self.in_text[2:])
                 self.offset = -1
                 self.last_j = -1
-                filename = database.get_fix_idx_filename(image_id)
-                self.features = database.get_fix_idx_vector(image_id)
+                filename = self.db.get_fix_idx_filename(image_id)
+                self.features = self.db.get_fix_idx_vector(image_id)
                 print(f"Similar to {filename}:")
             except:
                 print("Not found.")
@@ -551,7 +570,7 @@ class Search:
             while valid_results < self.k + self.offset + 2 and len(I[0]) > last_results_num:
                 last_results_num = len(I[0])
                 D, I = self.index.search(self.features, self.k + self.offset + 2 + extra)
-                self.results = merge_faiss_results(D, I, database.get_idx)
+                self.results = merge_faiss_results(D, I, self.db.get_idx)
                 if self.file_filter is None:
                     break
                 if extra == 0:
@@ -564,9 +583,9 @@ class Search:
                 for result in self.results:
                     tfn = ""
                     if type(result[0]) is tuple:
-                        tfn = database.get_fix_idx_filename(result[0][0])
+                        tfn = self.db.get_fix_idx_filename(result[0][0])
                     else:
-                        tfn = database.get_fix_idx_filename(result[0])
+                        tfn = self.db.get_fix_idx_filename(result[0])
                     if (re.search(self.file_filter, tfn) is None) != self.file_filter_mode:
                         valid_results += 1
             search_time = time.perf_counter() - search_start
@@ -575,24 +594,25 @@ class Search:
             # Search face embedding
             search_start = time.perf_counter()
             D, I = self.faces_index.search(self.features, self.k + self.offset + 2)
-            self.results = merge_faiss_results(D, I, database.get_idx_face)
+            self.results = merge_faiss_results(D, I, self.db.get_idx_face)
             search_time = time.perf_counter() - search_start
             print(f"Search time: {search_time:.4f}s")
         elif self.search_mode == SearchMode.CLIP_FACE:
             # Search CLIP features containing face embedding
             search_start = time.perf_counter()
             _, D, I = self.faces_index.range_search(x=self.face_features, thresh=self.face_threshold)
-            face_results = merge_faiss_results_1d_dict(D, I, database.get_idx_face)
+            face_results = merge_faiss_results_1d_dict(D, I, self.db.get_idx_face)
             _, D, I = self.index.range_search(x=self.features, thresh=self.clip_threshold)
             np.set_printoptions(threshold=np.inf)
-            self.results = merge_faiss_results_1d(D, I, database.get_idx, face_results)
+            self.results = merge_faiss_results_1d(D, I, self.db.get_idx, face_results)
             search_time = time.perf_counter() - search_start
             print(f"Search time: {search_time:.4f}s")
 
     class Result:
-        def __init__(self, result_elem):
+        def __init__(self, result_elem, results_j=None):
             self.result_elem = result_elem
 
+            self.results_j = results_j
             self.fix_idx = None
             self.face_id = None
             self.tfn = None
@@ -624,13 +644,13 @@ class Search:
         Next j being None means break from the loop.
         Result being None means continue the loop, skipping the omitted result.
         """
-        result = self.Result(self.results[j])
+        result = self.Result(self.results[j], j)
         if self.search_mode is SearchMode.FACE and result.score < self.face_threshold:
             return None, None, None
         self.last_j = j
         # Retrieve tfn, vector.
-        result.tfn = database.get_fix_idx_filename(result.fix_idx)
-        result.vector = database.get_fix_idx_vector(result.fix_idx)
+        result.tfn = self.db.get_fix_idx_filename(result.fix_idx)
+        result.vector = self.db.get_fix_idx_vector(result.fix_idx)
         if self.last_vector is not None and np.array_equal(result.vector, self.last_vector) and self.search_mode is not SearchMode.NONE_NOSKIP and (self.tried_j != j if result.has_face_id else True):
             if result.has_face_id:
                 self.tried_j = j
@@ -641,17 +661,17 @@ class Search:
             if (re.search(self.file_filter, result.tfn) is None) == self.file_filter_mode:
                 j, compensate = go(j, go_dir, compensate)
                 return None, j, compensate
-        if self.skip_perfect and (result.score > 0.999999 or config.has_tag(self.target_tag, result.fix_idx, result.face_id, self.cluster_mode)) and self.tried_j != j:
+        if self.skip_perfect and (result.score > 0.999999 or self.cfg.has_tag(self.target_tag, result.fix_idx, result.face_id, self.cluster_mode)) and self.tried_j != j:
                 self.tried_j = j
                 j, compensate = go(j, go_dir, compensate)
                 return None, j, compensate
         self.tried_j = -1
         # Retrieve annotations.
         if self.show_faces or self.target_tag is not None:
-            result.annotations = database.get_faces(database.i2b(result.fix_idx))
+            result.annotations = self.db.get_faces(self.db.i2b(result.fix_idx))
             found_tag = False
             for a_i, annotation in enumerate(result.annotations):
-                annotation['tag'] = config.get_face_tag(annotation, self.face_threshold, self.cluster_mode)
+                annotation['tag'] = self.cfg.get_face_tag(annotation, self.face_threshold, self.cluster_mode)
                 if result.face_id is not None and a_i == result.face_id and result.score > 0.99999:
                     annotation['color'] = (0, 255, 255)
                 if self.target_tag is not None and (annotation['tag'] == self.target_tag or (self.cluster_mode and annotation['tag'] == "")):
@@ -660,6 +680,36 @@ class Search:
                 j, compensate = go(j, go_dir, compensate)
                 return None, j, compensate
         return result, j, compensate
+
+    def prepare_results(self):
+        """
+        A generator function that abstracts out a minimal control flow
+        when using Search.prepare_result() (singular).
+
+        @yield a result from Search.prepare_result(j)
+        @ytype Search.Result
+        """
+        n_results = 0 if self.results is None else len(self.results)
+        j = 0
+        self.tried_j = -1
+        self.last_vector = None
+        while j < n_results:
+            result, j, _ = self.prepare_result(j)
+            if j is None:
+                break
+            elif result is None:
+                continue
+            #
+            # N.B.: It's only prepare_result()'s job to skip (in certain cases);
+            # the "normal" increment we'll have to do ourselves.
+            #
+            # Omitting this worked "accidentally", as prepare_result() would
+            # have skipped the image as duplicate after a second call
+            # with same j... (But not with all search modes, which hung up
+            # the GUI, e.g., on `l 0` command...)
+            #
+            j += 1
+            yield result
 
     def prepare_image(self, result, max_res=None):
         if max_res is None:
@@ -737,15 +787,11 @@ class Search:
                         break
                     elif key == ord('+'):
                         go_dir = 1
-                        if self.target_tag is not None:
-                            result.result_elem[1] = 1.0
-                            config.add_tag(self.target_tag, result.fix_idx, result.face_id, self.cluster_mode)
+                        self.maybe_add_tag(result)
                         break
                     elif key == ord('-'):
                         go_dir = 1
-                        if self.target_tag is not None:
-                            result.result_elem[1] = self.face_threshold + 0.00001
-                            config.del_tag(self.target_tag, result.fix_idx, result.face_id, self.cluster_mode)
+                        self.maybe_del_tag(result)
                         break
                 if do_break:
                     break
@@ -755,6 +801,22 @@ class Search:
                 continue
             j = j + go_dir
         cv2.destroyAllWindows()
+
+    def maybe_add_tag(self, result):
+        if self.target_tag is not None:
+            result.result_elem[1] = 1.0
+            if self.cfg.add_tag(self.target_tag, result.fix_idx, result.face_id, self.cluster_mode):
+                print(f"Added face {result.face_id} from image {result.fix_idx} to{' cluster' if self.cluster_mode else ''} tag {self.target_tag}.")
+            else:
+                print("Adding to tag failed.")
+
+    def maybe_del_tag(self, result):
+        if self.target_tag is not None:
+            result.result_elem[1] = self.face_threshold + 0.00001
+            if self.cfg.del_tag(self.target_tag, result.fix_idx, result.face_id, self.cluster_mode):
+                print(f"Removed face {result.face_id} from image {result.fix_idx} from{' cluster' if self.cluster_mode else ''} tag {self.target_tag}.")
+            else:
+                print("Removing from tag failed.")
 
 
 if __name__ == '__main__':

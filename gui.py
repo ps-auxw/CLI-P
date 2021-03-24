@@ -3,6 +3,7 @@
 #
 
 import sys
+import time
 from io import StringIO
 import contextlib
 
@@ -20,7 +21,7 @@ from PyQt5.QtWidgets import (
     qApp,
     QApplication, QMainWindow, QWidget,
     QSizePolicy,
-    QHBoxLayout, QVBoxLayout, QScrollBar, QTabWidget,
+    QHBoxLayout, QVBoxLayout, QScrollBar, QTabWidget, QToolBar,
     QComboBox, QLabel, QPushButton, QTextEdit,
     QTableView,
 )
@@ -121,11 +122,19 @@ class MainWindow(QMainWindow):
         self.imagesTabPage.resized.connect(self.imagesTabPageResized)
         imagesVBox = QVBoxLayout(self.imagesTabPage)
 
+        imgsToolBar = QToolBar()
+        self.imagesToolBar = imgsToolBar
+        self.imagesActionAddTag = imgsToolBar.addAction("Add to tag (&+)", self.imagesActionAddTagTriggered)
+        self.imagesActionDelTag = imgsToolBar.addAction("Del from tag (&-)", self.imagesActionDelTagTriggered)
+        self.imagesActionAddTag.setShortcut("Ctrl+T")
+        self.imagesActionDelTag.setShortcut("Ctrl+Shift+T")
+
         self.imageLabel = QLabel()
         self.imagesTableView = QTableView()
         self.imagesTableView.setEditTriggers(QTableView.NoEditTriggers)
         self.imagesTableView.activated.connect(self.searchResultsActivated)
 
+        imagesVBox.addWidget(self.imagesToolBar)
         imagesVBox.addWidget(self.imageLabel)
         imagesVBox.addWidget(self.imagesTableView)
         self.tabWidget.addTab(self.imagesTabPage, "&2 Images")
@@ -216,14 +225,18 @@ class MainWindow(QMainWindow):
         if query_index == None:
             self.appendSearchOutput("Loading query-index...")
             qApp.processEvents()
+            loadStart = time.perf_counter()
             query_index = __import__('query-index')  # TODO: Adjust file name.
-            self.appendSearchOutput("Loaded query-index.")
+            loadTime = time.perf_counter() - loadStart
+            self.appendSearchOutput(f"Loaded query-index: {loadTime:.4f}s")
             qApp.processEvents()
         if self.search == None:
             self.appendSearchOutput("Instantiating search...")
             qApp.processEvents()
+            instantiateStart = time.perf_counter()
             self.search = query_index.Search()
-            self.appendSearchOutput("Instantiated search.")
+            instantiateTime = time.perf_counter() - instantiateStart
+            self.appendSearchOutput(f"Instantiated search: {instantiateTime:.4f}s")
             qApp.processEvents()
 
             self.appendSearchOutput("\n" + self.search.init_msg)
@@ -286,13 +299,7 @@ class MainWindow(QMainWindow):
             return
         #self.stdoutSearchOutput(search.do_display)
         self.appendSearchOutput(f"Building results model for {n_results} results...")
-        j = 0
-        while j < n_results:
-            result, j, _ = search.prepare_result(j)
-            if j is None:
-                break
-            elif result is None:
-                continue
+        for result in search.prepare_results():
             self.appendToSearchResultsModel(result)
         self.appendSearchOutput(f"Built results model with {self.searchResultsModel.rowCount()} entries.")
 
@@ -321,8 +328,7 @@ class MainWindow(QMainWindow):
         #
         self.imageLabel.clear()
 
-    def appendToSearchResultsModel(self, result):
-        model = self.searchResultsModel
+    def prepareSearchResultsModelEntry(self, result):
         scoreItem  = QStandardItem(str(result.score))
         fixIdxItem = QStandardItem(str(result.fix_idx))
         faceIdItem = QStandardItem(str(result.face_id))
@@ -330,14 +336,45 @@ class MainWindow(QMainWindow):
         items = [scoreItem, fixIdxItem, faceIdItem, tfnItem]
         for item in items:
             item.setData(result)
+        return items
+
+    def appendToSearchResultsModel(self, result):
+        model = self.searchResultsModel
+        items = self.prepareSearchResultsModelEntry(result)
+        result.gui_rowOffset = model.rowCount()
         model.appendRow(items)
+
+    def recreateSearchResultsModelRow(self, result):
+        search = self.search
+        if search is None:
+            self.appendSearchOutput("Search instance missing.")
+            return
+        rowOffset = result.gui_rowOffset
+        # Recreate Search.Result instance.
+        # (e.g., rereads annotations/tags.)
+        search.tried_j = -1
+        search.last_vector = None
+        recreatedResult, j, _ = search.prepare_result(result.results_j)
+        if j is None:
+            self.appendSearchOutput(f"Failed to recreate search results model row {rowOffset+1}: Prepare result indicated end of results.")
+            return
+        elif recreatedResult is None:
+            self.appendSearchOutput(f"Failed to recreate search results model row {rowOffset+1}: Prepare result indicated skip.")
+            return
+        recreatedResult.gui_rowOffset = rowOffset
+        # Update Qt-side model.
+        model = self.searchResultsModel
+        items = self.prepareSearchResultsModelEntry(recreatedResult)
+        for columnOffset in range(model.columnCount()):
+            model.setItem(rowOffset, columnOffset, items[columnOffset])
+        return recreatedResult
 
     def searchResultsActivated(self, index):
         result = index.data(Qt.UserRole + 1)
-        self.showSearchResult(result)
+        self.showSearchResult(result, force=True)
 
-    def showSearchResult(self, result):
-        if self.searchResultSelected is result:
+    def showSearchResult(self, result, force=False):
+        if not force and self.searchResultSelected is result:
             return
         self.searchResultSelected = result
         if result is None:
@@ -356,6 +393,31 @@ class MainWindow(QMainWindow):
         # Convert prepared image to Qt/GUI.
         qtImage = QImage(image.data, image.shape[1], image.shape[0], 3 * image.shape[1], QImage.Format_RGB888).rgbSwapped()
         self.imageLabel.setPixmap(QPixmap.fromImage(qtImage))
+
+    def updateSearchResultSelected(self, updateCode):
+        result = self.searchResultSelected
+        if result is None:
+            self.appendSearchOutput("Update search result selected: No search result selected.")
+            return
+        self.stdoutSearchOutput(lambda: updateCode(result))
+        recreatedResult = self.recreateSearchResultsModelRow(result)
+        if recreatedResult is None:
+            return
+        self.showSearchResult(recreatedResult, force=True)
+
+    def imagesActionAddTagTriggered(self):
+        search = self.search
+        if search is None:
+            self.appendSearchOutput("Search instance missing.")
+            return
+        self.updateSearchResultSelected(search.maybe_add_tag)
+
+    def imagesActionDelTagTriggered(self):
+        search = self.search
+        if search is None:
+            self.appendSearchOutput("Search instance missing.")
+            return
+        self.updateSearchResultSelected(search.maybe_del_tag)
 
 
 if __name__ == '__main__':
